@@ -135,6 +135,26 @@ let suppressNextClick=false;
 .cell.add .plus{font-size:28px;line-height:1;color:#9ab3ff}
 .cell.add .label{color:#9ab3ff}
 
+
+
+/* 스크롤바 스타일 - 좌우/아래 동일 적용 */
+::-webkit-scrollbar {
+  width: 10px;  /* 세로 스크롤바 너비 */
+  height: 10px; /* 가로 스크롤바 높이 */
+}
+::-webkit-scrollbar-track {
+  background: #0e1426; /* 트랙 배경 */
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #394b79; /* 손잡이 색 */
+  border-radius: 8px;
+  border: 2px solid #0e1426; /* 손잡이 주위 여백 */
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4ea1ff; /* 호버 시 색상 */
+}
+
 </style>
 
 </head>
