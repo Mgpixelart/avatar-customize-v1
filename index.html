@@ -1,32 +1,13 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="ko">
 <head>
-
-
-  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="%23000"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Verdana" font-size="34" fill="%23fff">A</text></svg>' />
-<script>
-    (function () {
-      const isLocal = location.hostname === "" || location.hostname === "localhost" || location.protocol === "file:";
-      const repoBase = location.hostname.endsWith("github.io")
-        ? ("/" + (location.pathname.split("/")[1] || "") + "/")
-        : "./";
-      const base = document.createElement("base");
-      base.href = isLocal ? "./" : repoBase;
-      document.head.appendChild(base);
-      window.suppressNextClick = false;
-    })();
-  </script>
-
-
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>Avatar Customizer — FIX10 (BG bottom-left)</title>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Avatar Customizer — FIX10 (BG bottom-left)</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js">
 let suppressNextClick=false;
 </script>
-<style>
+  <style>
     *{box-sizing:border-box}
     html,body{height:100%;margin:0}
     body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif;color:#e8ecf1;background:#0b0d12}
@@ -116,6 +97,7 @@ let suppressNextClick=false;
     .left-group .btn{padding:2px 6px;font-size:12px}
     .left-group .btn#clearSelected{min-width:40px;text-align:center}
   </style>
+
 <style>
 /* Hide legacy frame controls */
 #framePrev, #frameNext, #frameRange, #frameInput, .frame-range, .frame-select { display:none !important; }
@@ -175,81 +157,88 @@ let suppressNextClick=false;
 }
 
 </style>
+
 </head>
 <body>
-<div id="app">
-<div class="topbar">
-<div class="title">
-<h1>Avatar Customizer</h1>
-<div class="meta">Sheet 432×256 · Face/Skin/Hair/Outfit</div>
-</div>
-<div class="actions">
-<span class="pill" id="perf">Idle</span>
-<!-- BG picker removed from topbar -->
-<label class="btn" for="inZip">Open ZIP</label><input accept="application/zip" id="inZip" type="file"/> <label class="btn" for="inDir">Open Folder</label><input accept="image/*" directory="" id="inDir" multiple="" type="file" webkitdirectory=""/><input accept="image/*" id="inFiles" multiple="" style="display:none" type="file"/>
-<button class="btn" disabled="" id="allRand" type="button">전체 랜덤</button>
-</div>
-</div>
-<div class="body" id="bodyGrid">
-<aside class="left" id="leftPanel">
-<div class="leftHead">
-<button class="btn" id="toggleLeft" title="접기/펼치기" type="button">◀</button>
-</div>
-<div class="tablist" id="tablist"></div>
-</aside>
-<section class="mid">
-<div class="colors" id="colorBar"></div>
-<div class="grid" id="grid"></div>
-</section>
-<div class="split" id="split"></div>
-<aside class="right">
-<div class="stage">
-<div class="framebar">
-<div class="framebar-top">
-<div class="left-group">
-<span class="pill">프레임 <span id="frameLabel">-</span></span>
-</div>
-</div>
-<div class="framebar-bottom">
-<div class="export-controls">
-<select id="exportScale" style="margin-right:6px;" title="저장 배율">
-<option selected="" value="1">1x</option>
-<option value="2">2x</option>
-<option value="3">3x</option>
-<option value="4">4x</option>
-<option value="6">6x</option>
-<option value="8">8x</option>
-</select>
-<button class="btn" id="saveWebp" title="현재 시트 전체를 WebP 파일로 저장">Sheet</button>
-<button class="btn" id="saveSelected" title="선택된 프레임들을 하나의 이미지로 합쳐서 저장">Selected</button>
-<button class="btn" id="saveAllZip" title="모든 프레임(36개)을 ZIP 파일로 저장">All</button>
-<button class="btn" id="exportFrames" title="선택된 프레임들을 각각 개별 파일로 저장">Frames</button>
-</div>
-</div>
-</div>
-<div class="view">
-<div class="canvasWrap" id="canvasWrap">
-<canvas height="256" id="sheet" width="432"></canvas>
-<div class="zoom-controls-overlay">
-<button class="btn" id="zoomOutOverlay" title="축소">−</button>
-<button class="btn" id="zoomInOverlay" title="확대">＋</button>
-<button class="btn" id="zoomFitOverlay" title="화면에 맞춤">Fit</button>
-</div>
-<!-- NEW: BG picker moved here -->
-<div class="bg-color-overlay">
-<label for="bgColor">BG</label>
-<input id="bgColor" type="color" value="#0b0d12"/>
-</div>
-</div>
-</div>
-</div>
-</aside>
-</div>
-<div class="status">
-<div class="mono" id="selText">face: -, skin: -, hair: -, clothes: -</div>
-<button class="btn" id="copySel" type="button">Copy</button>
-</div>
-</div>
+  <div id="app">
+    <div class="topbar">
+      <div class="title">
+        <h1>Avatar Customizer</h1>
+        <div class="meta">Sheet 432×256 · Face/Skin/Hair/Outfit</div>
+      </div>
+      <div class="actions">
+        <span class="pill" id="perf">Idle</span>
+        <!-- BG picker removed from topbar -->
+        <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip"> <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*"><input id="inFiles" type="file" accept="image/*" multiple style="display:none">
+        <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
+      </div>
+    </div>
+
+    <div id="bodyGrid" class="body">
+      <aside id="leftPanel" class="left">
+        <div class="leftHead">
+          <button id="toggleLeft" class="btn" type="button" title="접기/펼치기">◀</button>
+        </div>
+        <div class="tablist" id="tablist"></div>
+      </aside>
+
+      <section class="mid">
+        <div class="colors" id="colorBar"></div>
+        <div class="grid" id="grid"></div>
+      </section>
+
+      <div class="split" id="split"></div>
+
+      <aside class="right">
+        <div class="stage">
+          <div class="framebar">
+            <div class="framebar-top">
+              <div class="left-group">
+                <span class="pill">프레임 <span id="frameLabel">-</span></span>
+              </div>
+            </div>
+            <div class="framebar-bottom">
+              <div class="export-controls">
+                <select id="exportScale" title="저장 배율" style="margin-right:6px;">
+                  <option value="1" selected>1x</option>
+                  <option value="2">2x</option>
+                  <option value="3">3x</option>
+                  <option value="4">4x</option>
+                  <option value="6">6x</option>
+                  <option value="8">8x</option>
+                </select>
+                <button class="btn" id="saveWebp" title="현재 시트 전체를 WebP 파일로 저장">Sheet</button>
+                <button class="btn" id="saveSelected" title="선택된 프레임들을 하나의 이미지로 합쳐서 저장">Selected</button>
+                <button class="btn" id="saveAllZip" title="모든 프레임(36개)을 ZIP 파일로 저장">All</button>
+                <button class="btn" id="exportFrames" title="선택된 프레임들을 각각 개별 파일로 저장">Frames</button>
+              </div>
+            </div>
+          </div>
+          <div class="view">
+            <div class="canvasWrap" id="canvasWrap">
+              <canvas id="sheet" width="432" height="256"></canvas>
+              <div class="zoom-controls-overlay">
+                <button class="btn" id="zoomOutOverlay" title="축소">−</button>
+                <button class="btn" id="zoomInOverlay" title="확대">＋</button>
+                <button class="btn" id="zoomFitOverlay" title="화면에 맞춤">Fit</button>
+              </div>
+              <!-- NEW: BG picker moved here -->
+              <div class="bg-color-overlay">
+                <label for="bgColor">BG</label>
+                <input id="bgColor" type="color" value="#0b0d12">
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="status">
+      <div id="selText" class="mono">face: -, skin: -, hair: -, clothes: -</div>
+      <button class="btn" id="copySel" type="button">Copy</button>
+    </div>
+  </div>
+
 <script>
 (function(){
   const ORDER = ['skin','clothes','face','hair','glass'];
@@ -810,6 +799,8 @@ frameIndexEl.addEventListener('change', ()=>{ frameIndexEl.value = clampFrame(+f
   }
 })();
 </script>
+
+
 <script>
 async function encodeWebPFromCanvas(canvas, {lossless=true, quality=1.0}={}){
   if ('ImageEncoder' in window) {
@@ -823,6 +814,9 @@ async function encodeWebPFromCanvas(canvas, {lossless=true, quality=1.0}={}){
   return await new Promise(res=> canvas.toBlob(res, 'image/webp', quality));
 }
 </script>
+
+
+
 <script>
 // Global fileBase for download handlers in other scripts
 window.fileBase = function fileBase(){
@@ -840,6 +834,7 @@ window.fileBase = function fileBase(){
   return 'sheet';
 };
 </script>
+
 <script>
 document.addEventListener('DOMContentLoaded', ()=>{
   try {
@@ -1193,6 +1188,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 });
 </script>
+
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const canvasWrap = document.getElementById("canvasWrap");
@@ -1210,6 +1207,7 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 </script>
+
 <script>
 (function(){
   const grid = document.getElementById('grid');
@@ -1263,6 +1261,10 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 })();
 </script>
+
+
+
+
 <script>
 (function(){
   const selText = document.getElementById('selText');
@@ -1276,370 +1278,3 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 })();
 </script>
-
-
-<!-- PATCH: robust ZIP loader with fallbacks + local file picker -->
-<script>
-(function(){
-  // Config
-  const DEFAULTS = ["assets/current.zip", "assets/avatar-parts-webp.zip"];
-  const PARTS = ["face","skin","hair","clothes","glass","hat","mask","beard","back","front","necklace","shirt","eyes","eyebrow","mouth","ear","body"];
-
-  function parseQuery(){
-    const p = new URLSearchParams(location.search);
-    const z = p.get("zip");
-    return { zip: z };
-  }
-
-  function {
-    let el = document.getElementById("__zip_hud__");
-    if (!el){
-      el = document.createElement('div');
-      el.id = "__zip_hud__";
-      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
-      document.body.appendChild(el);
-    }
-    el.style.background = ok ? '#111' : '#822';
-    el.textContent = msg;
-    if (keepMs>0) setTimeout(()=>{ if (el) el.remove(); }, keepMs);
-    return el;
-  }
-
-  async function fetchZip(url){
-    console.log("[ZIP] fetching:", url);
-    const res = await fetch(url, { cache: 'no-cache' });
-    if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} for ${url}`);
-      err.status = res.status;
-      err.url = url;
-      throw err;
-    }
-    return res.arrayBuffer();
-  }
-
-  async function tryLoadZip(urls){
-    let lastErr = null;
-    for (const u of urls){
-      try{
-        
-        const buf = await fetchZip(u);
-        
-        return {buf, from:u};
-      }catch(e){
-        console.warn("[ZIP] failed:", e);
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error("No ZIP candidate worked");
-  }
-
-  async function zipToAssets(buf){
-    const zip = await JSZip.loadAsync(buf);
-    // Collect .webp entries
-    const entries = [];
-    zip.forEach((rel, file) => {
-      if (!file.dir && /\.webp$/i.test(rel)) entries.push({ name: rel, file });
-    });
-    // Group
-    const grouped = {};
-    for (const part of PARTS) grouped[part] = new Map();
-    for (const e of entries){
-      const path = e.name.replace(/^\.?\/*/, "");
-      const segs = path.split("/");
-      if (segs.length < 2) continue;
-      const part = segs[0];
-      if (!PARTS.includes(part)) continue;
-      const filename = segs[segs.length-1];
-      const mPrev = filename.match(/^(.+)_preview\.webp$/i);
-      const mMain = filename.match(/^(.+)\.webp$/i);
-      if (!mPrev && !mMain) continue;
-      const keyStr = (mPrev ? mPrev[1] : mMain[1]);
-      const n = parseInt(keyStr, 10);
-      const key = Number.isFinite(n) ? n : keyStr;
-      const obj = grouped[part].get(key) || { name: `#${keyStr}` };
-      if (mPrev) obj._prev = e.file;
-      if (mMain) obj._main = e.file;
-      grouped[part].set(key, obj);
-    }
-    // Blob URLs
-    for (const part of Object.keys(grouped)){
-      for (const [key, obj] of grouped[part].entries()){
-        let mainUrl=null, prevUrl=null;
-        if (obj._main){ const b = await obj._main.async("blob"); mainUrl = URL.createObjectURL(b); }
-        if (obj._prev){ const b2= await obj._prev.async("blob"); prevUrl = URL.createObjectURL(b2); }
-        if (!mainUrl && prevUrl) mainUrl = prevUrl;
-        if (!prevUrl && mainUrl) prevUrl = mainUrl;
-        grouped[part].set(key, { url: mainUrl, previewUrl: prevUrl, name: obj.name });
-      }
-    }
-    return grouped;
-  }
-
-  function applyAssets(grouped){
-    window.store = window.store || {};
-    store.assets = store.assets || {};
-    for (const part of Object.keys(grouped)){
-      store.assets[part] = grouped[part];
-    }
-    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
-  }
-
-  function showPicker(onPick){
-    // Floating panel
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;bottom:12px;left:12px;background:#1e1e1e;color:#fff;padding:10px 12px;border-radius:10px;font:12px monospace;z-index:99999;box-shadow:0 6px 18px rgba(0,0,0,.35)';
-    wrap.innerHTML = `
-      <div style="margin-bottom:6px">ZIP를 선택해서 로드할 수 있습니다.</div>
-      <input type="file" accept=".zip" id="__zip_file__">
-      <button id="__zip_close__" style="margin-left:8px;">닫기</button>
-    `;
-    document.body.appendChild(wrap);
-    const inp = wrap.querySelector('#__zip_file__');
-    const closeBtn = wrap.querySelector('#__zip_close__');
-    inp.addEventListener('change', async (e)=>{
-      const f = inp.files && inp.files[0];
-      if (!f) return;
-      
-      try{
-        const buf = await f.arrayBuffer();
-        await onPick(buf);
-        
-        wrap.remove();
-      }catch(err){
-        
-      }
-    });
-    closeBtn.addEventListener('click', ()=>wrap.remove());
-  }
-
-  async function boot(){
-    const {zip} = parseQuery();
-    const candidates = zip ? [zip] : DEFAULTS.slice();
-    try{
-      const {buf, from} = await tryLoadZip(candidates);
-      const grouped = await zipToAssets(buf);
-      applyAssets(grouped);
-      let total=0; for (const p of Object.keys(store.assets)) total+=store.assets[p].size;
-      `);
-      try { if (typeof window.drawSheet==='function') await window.drawSheet(); } catch(e){ console.warn(e); }
-    }catch(err){
-      console.warn("All ZIP fetch failed.", err);
-      
-      showPicker(async (buf)=>{
-        const grouped = await zipToAssets(buf);
-        applyAssets(grouped);
-        let total=0; for (const p of Object.keys(store.assets)) total+=store.assets[p].size;
-        try { if (typeof window.drawSheet==='function') await window.drawSheet(); } catch(e){}
-      });
-    }
-  }
-
-  window.addEventListener('load', boot);
-})();
-</script>
-
-
-
-<!-- FIXED ZIP LOADER: always use assets/current.zip with raw fallback -->
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script>
-(function(){
-  const GH_OWNER = "mgpixelart";
-  const GH_REPO  = "avatar-customize-v1";
-  const BRANCH   = "main";
-
-  // 1st: Pages-hosted file (same origin) → fastest & no CORS issue
-  const PRIMARY = "assets/current.zip";
-  // 2nd: Raw GitHub URL fallback (CORS OK for GET)
-  const RAW_FALLBACK = `
-
-  const PARTS = ["face","skin","hair","clothes","glass","hat","mask","beard","back","front","necklace","shirt","eyes","eyebrow","mouth","ear","body"];
-
-  function {
-    let el = document.getElementById("__zip_hud__");
-    if (!el){
-      el = document.createElement('div');
-      el.id = "__zip_hud__";
-      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
-      document.body.appendChild(el);
-    }
-    el.style.background = ok ? '#111' : '#822';
-    el.textContent = msg;
-    if (keepMs>0) setTimeout(()=>{ if (el) el.remove(); }, keepMs);
-    return el;
-  }
-
-  async function fetchZip(url){
-    const res = await fetch(url, { cache: 'no-cache' });
-    if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} for ${url}`);
-      err.status = res.status;
-      err.url = url;
-      throw err;
-    }
-    return res.arrayBuffer();
-  }
-
-  async function loadFixedZip(){
-    // Try PRIMARY then RAW_FALLBACK
-    try{
-      
-      const buf = await fetchZip(PRIMARY);
-      
-      return {buf, from: PRIMARY};
-    }catch(e1){
-      console.warn("PRIMARY failed:", e1);
-      try{
-        
-        const buf2 = await fetchZip(RAW_FALLBACK);
-        
-        return {buf: buf2, from: RAW_FALLBACK};
-      }catch(e2){
-        throw e2;
-      }
-    }
-  }
-
-  async function zipToAssets(buf){
-    const zip = await JSZip.loadAsync(buf);
-    const entries = [];
-    zip.forEach((rel, file) => {
-      if (!file.dir && /\.webp$/i.test(rel)) entries.push({ name: rel, file });
-    });
-    const grouped = {};
-    for (const part of PARTS) grouped[part] = new Map();
-    for (const e of entries){
-      const segs = e.name.replace(/^\.?\/*/, "").split("/");
-      if (segs.length < 2) continue;
-      const part = segs[0];
-      if (!PARTS.includes(part)) continue;
-      const filename = segs[segs.length-1];
-      const mPrev = filename.match(/^(.+)_preview\.webp$/i);
-      const mMain = filename.match(/^(.+)\.webp$/i);
-      if (!mPrev && !mMain) continue;
-      const keyStr = (mPrev ? mPrev[1] : mMain[1]);
-      const n = parseInt(keyStr, 10);
-      const key = Number.isFinite(n) ? n : keyStr;
-      const obj = grouped[part].get(key) || { name: `#${keyStr}` };
-      if (mPrev) obj._prev = e.file;
-      if (mMain) obj._main = e.file;
-      grouped[part].set(key, obj);
-    }
-    for (const part of Object.keys(grouped)){
-      for (const [key, obj] of grouped[part].entries()){
-        let mainUrl=null, prevUrl=null;
-        if (obj._main){ const b = await obj._main.async("blob"); mainUrl = URL.createObjectURL(b); }
-        if (obj._prev){ const b2 = await obj._prev.async("blob"); prevUrl = URL.createObjectURL(b2); }
-        if (!mainUrl && prevUrl) mainUrl = prevUrl;
-        if (!prevUrl && mainUrl) prevUrl = mainUrl;
-        grouped[part].set(key, { url: mainUrl, previewUrl: prevUrl, name: obj.name });
-      }
-    }
-    return grouped;
-  }
-
-  function applyAssets(grouped){
-    window.store = window.store || {};
-    store.assets = store.assets || {};
-    for (const part of Object.keys(grouped)){
-      store.assets[part] = grouped[part];
-    }
-    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
-  }
-
-  async function boot(){
-    try{
-      const {buf, from} = await loadFixedZip();
-      const grouped = await zipToAssets(buf);
-      applyAssets(grouped);
-
-      let total = 0;
-      for (const p of Object.keys(store.assets)) total += store.assets[p].size;
-       from: ${from}`);
-
-      try{ if (typeof window.drawSheet === 'function') await window.drawSheet(); }catch(e){ console.warn(e); }
-    }catch(err){
-      console.warn("ZIP load failed completely.", err);
-      
-    }
-  }
-
-  window.addEventListener('load', boot);
-})();
-</script>
-
-
-<!-- PATCH: robust ZIP loader with fallbacks + local file picker -->
-<script>
-(function(){
-  // Candidate URLs (edit as needed)
-  const CANDIDATES = []; // GitHub ZIP URLs removed
-
-  function {
-    let el = document.getElementById("__zip_hud__");
-    if (!el){
-      el = document.createElement('div');
-      el.id = "__zip_hud__";
-      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
-      document.body.appendChild(el);
-    }
-    el.style.background = ok ? '#111' : '#7a1f1f';
-    el.textContent = msg;
-    if (keepMs>0) setTimeout(()=>{ try{el.remove();}catch(_){}} , keepMs);
-    return el;
-  }
-
-  async function fetchZip(url){
-    console.log("[ZIP] fetching:", url);
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} for ${url}`);
-      err.status = res.status; err.url = url;
-      throw err;
-    }
-    return await res.arrayBuffer();
-  }
-
-  async function pickZip(){
-    // showOpenFilePicker preferred; fallback simple <input type=file>
-    if (window.showOpenFilePicker){
-      const [h] = await window.showOpenFilePicker({
-        types: [{description:"ZIP file", accept:{"application/zip":[".zip"]}}],
-        excludeAcceptAllOption: false, multiple: false
-      });
-      const file = await h.getFile();
-      return await file.arrayBuffer();
-    }
-    return await new Promise((resolve, reject)=>{
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:fixed;bottom:12px;left:12px;background:#1e1e1e;color:#fff;padding:10px 12px;border-radius:10px;font:12px monospace;z-index:99999;box-shadow:0 6px 18px rgba(0,0,0,.35)';
-      wrap.innerHTML = '<div style="margin-bottom:6px">ZIP를 선택해서 로드할 수 있습니다.</div><input type="file" accept=".zip" id="__zip_file__"><button id="__zip_close__" style="margin-left:8px;">닫기</button>';
-      document.body.appendChild(wrap);
-      const inp = wrap.querySelector('#__zip_file__');
-      const closeBtn = wrap.querySelector('#__zip_close__');
-      closeBtn.addEventListener('click', ()=>{ wrap.remove(); reject(new Error("picker closed")); });
-      inp.addEventListener('change', async (e)=>{
-        const f = inp.files && inp.files[0];
-        if (!f) { wrap.remove(); return reject(new Error("no file selected")); }
-        const buf = await f.arrayBuffer();
-        wrap.remove();
-        resolve(buf);
-      }, {once:true});
-    });
-  }
-
-  // Expose overrides compatible with your existing code if present
-  window.fetchZip = async function(url){ return await fetchZip(url); };
-
-  window.tryLoadZip = async function(){ console.warn('GitHub ZIP loading disabled'); return null; };
-
-  // Optional: auto boot if your app expects it
-  (async function autoBoot(){
-    // If your code has a boot() that calls tryLoadZip, let it run.
-    // Otherwise, we can do nothing here.
-  })();
-})();
-</script>
-<!-- END PATCH: robust ZIP loader -->
-
-</body></html>
