@@ -145,5 +145,64 @@
     // auto start
     boot();
   </script>
+<script>
+(function(){
+  // Improved ZIP helpers injected
+  async function __zip_fetch(url){
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
+    const blob = await res.blob();
+    return await JSZip.loadAsync(blob);
+  }
+
+  async function __zip_pick(){
+    if (!window.showOpenFilePicker) {
+      throw new Error("showOpenFilePicker 미지원. 브라우저 변경 또는 간단 서버 사용 권장.");
+    }
+    const [h] = await window.showOpenFilePicker({
+      types: [{ description: "ZIP file", accept: { "application/zip": [".zip"] } }],
+      excludeAcceptAllOption: false, multiple: false,
+    });
+    const file = await h.getFile();
+    const buf = await file.arrayBuffer();
+    return await JSZip.loadAsync(buf);
+  }
+
+  // Override existing functions if present
+  window.fetchZip = async function(url){
+    // Backward-compatible: keep signature, but use our fetch
+    return __zip_fetch(url);
+  };
+
+  window.tryLoadZip = async function(){
+    // If local file:// — prefer picker
+    if (window.__IS_LOCAL__) {
+      try { return await __zip_pick(); } catch(e) {}
+    }
+    // Candidates on web
+    const candidates = [
+      "assets/current.zip",
+      "current.zip",
+      // Releases URL (optional) — replace if you use Releases
+      // "https://github.com/Mgpixelart/avatar-customize-v1/releases/download/v1.0.0/current.zip",
+      // Always include RAW fallback
+      "https://raw.githubusercontent.com/Mgpixelart/avatar-customize-v1/main/assets/current.zip"
+    ];
+    let lastErr = null;
+    for (const u of candidates) {
+      try { return await __zip_fetch(u); }
+      catch(e){ lastErr = e; }
+    }
+    // All failed → allow manual pick (even on web)
+    try { return await __zip_pick(); } catch(e) {}
+    throw lastErr || new Error("All ZIP fetch failed");
+  };
+
+  // If boot exists and expects tryLoadZip, we keep behavior.
+  // We do not override boot to preserve app logic.
+
+})();
+</script>
+
 </body>
 </html>
