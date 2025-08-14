@@ -1264,4 +1264,103 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 })();
 </script>
+
+<!-- AUTO-LOAD START: GitHub API folder-based loader (no manifest, filename-driven) -->
+<script>
+(function(){
+  const GH_OWNER = "mgpixelart";
+  const GH_REPO  = "avatar-customize-v1";
+  const GH_REF   = "main";
+  const PAGES_BASE = `https://${GH_OWNER}.github.io/${GH_REPO}/`;
+
+  const PARTS = ["face","skin","hair","clothes","glass","hat","mask","beard","back","front","necklace","shirt","eyes","eyebrow","mouth","ear","body"];
+
+  async function listGithubDir(path){
+    const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}?ref=${GH_REF}`;
+    const r = await fetch(url, { headers: { "Accept":"application/vnd.github+json" }});
+    if(!r.ok) throw new Error(`GitHub API error ${r.status} for ${path}`);
+    const arr = await r.json();
+    // keep only .webp files
+    return arr.filter(x => x.type === "file" && /\.webp$/i.test(x.name)).map(x => ({
+      name: x.name,
+      url: PAGES_BASE + path.replace(/^\.\//,'').replace(/^\//,'') + "/" + x.name
+    }));
+  }
+
+  function buildMapFromFiles(files){
+    // group into main vs preview by name convention: <id>.webp and <id>_preview.webp
+    const byId = new Map();
+    for(const f of files){
+      const mPrev = f.name.match(/^(.+)_preview\.webp$/i);
+      if(mPrev){
+        const key = mPrev[1];
+        const obj = byId.get(key) || {};
+        obj.previewUrl = f.url;
+        byId.set(key, obj);
+        continue;
+      }
+      const mMain = f.name.match(/^(.+)\.webp$/i);
+      if(mMain){
+        const key = mMain[1];
+        const obj = byId.get(key) || {};
+        obj.url = f.url;
+        byId.set(key, obj);
+      }
+    }
+
+    // Convert key to numeric when possible
+    const out = new Map();
+    for(const [k, v] of byId.entries()){
+      const id = parseInt(k, 10);
+      const key = Number.isFinite(id) ? id : k; // fallback to string key
+      // ensure at least url exists
+      if(!v.url && v.previewUrl){ v.url = v.previewUrl; }
+      out.set(key, { url: v.url, previewUrl: v.previewUrl || v.url, name: `#${k}` });
+    }
+    return out;
+  }
+
+  async function loadAllParts(){
+    window.store = window.store || {};
+    store.assets = store.assets || {};
+    let total = 0;
+    for(const part of PARTS){
+      try{
+        const files = await listGithubDir(`assets/${part}`);
+        const map = buildMapFromFiles(files);
+        store.assets[part] = map;
+        total += map.size;
+      }catch(e){
+        // folder may not exist — skip silently
+        store.assets[part] = store.assets[part] || new Map();
+      }
+    }
+    // initial picks default to -1
+    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
+
+    // Trigger a redraw if available
+    try{ if(typeof window.drawSheet === 'function'){ await window.drawSheet(); } }catch(e){ console.warn(e); }
+
+    // small HUD
+    const tip = document.createElement('div');
+    tip.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:6px 10px;background:#111;color:#fff;font:12px/1.4 monospace;border-radius:6px;opacity:.92;z-index:9999';
+    tip.textContent = `Loaded ${total} items from GitHub (folder-based)`;
+    document.body.appendChild(tip);
+    setTimeout(()=>tip.remove(), 3000);
+  }
+
+  window.addEventListener('load', ()=>{
+    loadAllParts().catch(err=>{
+      console.warn('Folder-based auto-load failed:', err);
+      const tip = document.createElement('div');
+      tip.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:6px 10px;background:#822;color:#fff;font:12px/1.4 monospace;border-radius:6px;opacity:.92;z-index:9999';
+      tip.textContent = 'assets/* 폴더를 GitHub API로 불러오지 못했습니다.';
+      document.body.appendChild(tip);
+      setTimeout(()=>tip.remove(), 4000);
+    });
+  });
+})();
+</script>
+<!-- AUTO-LOAD END -->
+
 </body></html>
