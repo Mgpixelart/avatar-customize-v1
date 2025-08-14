@@ -23,29 +23,6 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Avatar Customizer — FIX10 (BG bottom-left)</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-<!-- PATCH: JSZip loadAsync shim + verbose errors -->
-<script>
-(function(){
-  if (window.JSZip && typeof JSZip.loadAsync === 'function'){
-    const _orig = JSZip.loadAsync.bind(JSZip);
-    JSZip.loadAsync = function(input, ...rest){
-      // If already a JSZip instance, just resolve it
-      if (input && typeof input === 'object' && typeof input.file === 'function' && typeof input.folder === 'function'){
-        return Promise.resolve(input);
-      }
-      try {
-        return _orig(input, ...rest);
-      } catch (e) {
-        console.error("[JSZip] loadAsync error:", e);
-        throw e;
-      }
-    };
-  }
-})();
-</script>
-<!-- END PATCH -->
-
 <script>
 let suppressNextClick=false;
 </script>
@@ -1314,7 +1291,7 @@ document.addEventListener("DOMContentLoaded", function() {
     return { zip: z };
   }
 
-  function hud(msg, ok=true, keepMs=2500){
+  function {
     let el = document.getElementById("__zip_hud__");
     if (!el){
       el = document.createElement('div');
@@ -1328,28 +1305,300 @@ document.addEventListener("DOMContentLoaded", function() {
     return el;
   }
 
-  
-async function fetchZip(url){
-  console.log("[ZIP] fetching:", url);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status} for ${url}`);
-    err.status = res.status; err.url = url;
-    throw err;
+  async function fetchZip(url){
+    console.log("[ZIP] fetching:", url);
+    const res = await fetch(url, { cache: 'no-cache' });
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status} for ${url}`);
+      err.status = res.status;
+      err.url = url;
+      throw err;
+    }
+    return res.arrayBuffer();
   }
-  const buf = await res.arrayBuffer();
-  // ZIP signature 'PK' = 0x50 0x4B
-  const view = new Uint8Array(buf.slice(0, 2));
-  const isZip = view.length >= 2 && view[0] === 0x50 && view[1] === 0x4B;
-  if (!isZip){
-    const textHead = new TextDecoder().decode(new Uint8Array(buf.slice(0, 120)));
-    const err = new Error("Not a ZIP (signature mismatch). Head: " + textHead.replace(/\s+/g,' ').slice(0, 80));
-    err.url = url;
-    throw err;
-  }
-  return buf;
-}
 
+  async function tryLoadZip(urls){
+    let lastErr = null;
+    for (const u of urls){
+      try{
+        
+        const buf = await fetchZip(u);
+        
+        return {buf, from:u};
+      }catch(e){
+        console.warn("[ZIP] failed:", e);
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("No ZIP candidate worked");
+  }
+
+  async function zipToAssets(buf){
+    const zip = await JSZip.loadAsync(buf);
+    // Collect .webp entries
+    const entries = [];
+    zip.forEach((rel, file) => {
+      if (!file.dir && /\.webp$/i.test(rel)) entries.push({ name: rel, file });
+    });
+    // Group
+    const grouped = {};
+    for (const part of PARTS) grouped[part] = new Map();
+    for (const e of entries){
+      const path = e.name.replace(/^\.?\/*/, "");
+      const segs = path.split("/");
+      if (segs.length < 2) continue;
+      const part = segs[0];
+      if (!PARTS.includes(part)) continue;
+      const filename = segs[segs.length-1];
+      const mPrev = filename.match(/^(.+)_preview\.webp$/i);
+      const mMain = filename.match(/^(.+)\.webp$/i);
+      if (!mPrev && !mMain) continue;
+      const keyStr = (mPrev ? mPrev[1] : mMain[1]);
+      const n = parseInt(keyStr, 10);
+      const key = Number.isFinite(n) ? n : keyStr;
+      const obj = grouped[part].get(key) || { name: `#${keyStr}` };
+      if (mPrev) obj._prev = e.file;
+      if (mMain) obj._main = e.file;
+      grouped[part].set(key, obj);
+    }
+    // Blob URLs
+    for (const part of Object.keys(grouped)){
+      for (const [key, obj] of grouped[part].entries()){
+        let mainUrl=null, prevUrl=null;
+        if (obj._main){ const b = await obj._main.async("blob"); mainUrl = URL.createObjectURL(b); }
+        if (obj._prev){ const b2= await obj._prev.async("blob"); prevUrl = URL.createObjectURL(b2); }
+        if (!mainUrl && prevUrl) mainUrl = prevUrl;
+        if (!prevUrl && mainUrl) prevUrl = mainUrl;
+        grouped[part].set(key, { url: mainUrl, previewUrl: prevUrl, name: obj.name });
+      }
+    }
+    return grouped;
+  }
+
+  function applyAssets(grouped){
+    window.store = window.store || {};
+    store.assets = store.assets || {};
+    for (const part of Object.keys(grouped)){
+      store.assets[part] = grouped[part];
+    }
+    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
+  }
+
+  function showPicker(onPick){
+    // Floating panel
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;bottom:12px;left:12px;background:#1e1e1e;color:#fff;padding:10px 12px;border-radius:10px;font:12px monospace;z-index:99999;box-shadow:0 6px 18px rgba(0,0,0,.35)';
+    wrap.innerHTML = `
+      <div style="margin-bottom:6px">ZIP를 선택해서 로드할 수 있습니다.</div>
+      <input type="file" accept=".zip" id="__zip_file__">
+      <button id="__zip_close__" style="margin-left:8px;">닫기</button>
+    `;
+    document.body.appendChild(wrap);
+    const inp = wrap.querySelector('#__zip_file__');
+    const closeBtn = wrap.querySelector('#__zip_close__');
+    inp.addEventListener('change', async (e)=>{
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      
+      try{
+        const buf = await f.arrayBuffer();
+        await onPick(buf);
+        
+        wrap.remove();
+      }catch(err){
+        
+      }
+    });
+    closeBtn.addEventListener('click', ()=>wrap.remove());
+  }
+
+  async function boot(){
+    const {zip} = parseQuery();
+    const candidates = zip ? [zip] : DEFAULTS.slice();
+    try{
+      const {buf, from} = await tryLoadZip(candidates);
+      const grouped = await zipToAssets(buf);
+      applyAssets(grouped);
+      let total=0; for (const p of Object.keys(store.assets)) total+=store.assets[p].size;
+      `);
+      try { if (typeof window.drawSheet==='function') await window.drawSheet(); } catch(e){ console.warn(e); }
+    }catch(err){
+      console.warn("All ZIP fetch failed.", err);
+      
+      showPicker(async (buf)=>{
+        const grouped = await zipToAssets(buf);
+        applyAssets(grouped);
+        let total=0; for (const p of Object.keys(store.assets)) total+=store.assets[p].size;
+        try { if (typeof window.drawSheet==='function') await window.drawSheet(); } catch(e){}
+      });
+    }
+  }
+
+  window.addEventListener('load', boot);
+})();
+</script>
+
+
+
+<!-- FIXED ZIP LOADER: always use assets/current.zip with raw fallback -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+(function(){
+  const GH_OWNER = "mgpixelart";
+  const GH_REPO  = "avatar-customize-v1";
+  const BRANCH   = "main";
+
+  // 1st: Pages-hosted file (same origin) → fastest & no CORS issue
+  const PRIMARY = "assets/current.zip";
+  // 2nd: Raw GitHub URL fallback (CORS OK for GET)
+  const RAW_FALLBACK = `
+
+  const PARTS = ["face","skin","hair","clothes","glass","hat","mask","beard","back","front","necklace","shirt","eyes","eyebrow","mouth","ear","body"];
+
+  function {
+    let el = document.getElementById("__zip_hud__");
+    if (!el){
+      el = document.createElement('div');
+      el.id = "__zip_hud__";
+      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
+      document.body.appendChild(el);
+    }
+    el.style.background = ok ? '#111' : '#822';
+    el.textContent = msg;
+    if (keepMs>0) setTimeout(()=>{ if (el) el.remove(); }, keepMs);
+    return el;
+  }
+
+  async function fetchZip(url){
+    const res = await fetch(url, { cache: 'no-cache' });
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status} for ${url}`);
+      err.status = res.status;
+      err.url = url;
+      throw err;
+    }
+    return res.arrayBuffer();
+  }
+
+  async function loadFixedZip(){
+    // Try PRIMARY then RAW_FALLBACK
+    try{
+      
+      const buf = await fetchZip(PRIMARY);
+      
+      return {buf, from: PRIMARY};
+    }catch(e1){
+      console.warn("PRIMARY failed:", e1);
+      try{
+        
+        const buf2 = await fetchZip(RAW_FALLBACK);
+        
+        return {buf: buf2, from: RAW_FALLBACK};
+      }catch(e2){
+        throw e2;
+      }
+    }
+  }
+
+  async function zipToAssets(buf){
+    const zip = await JSZip.loadAsync(buf);
+    const entries = [];
+    zip.forEach((rel, file) => {
+      if (!file.dir && /\.webp$/i.test(rel)) entries.push({ name: rel, file });
+    });
+    const grouped = {};
+    for (const part of PARTS) grouped[part] = new Map();
+    for (const e of entries){
+      const segs = e.name.replace(/^\.?\/*/, "").split("/");
+      if (segs.length < 2) continue;
+      const part = segs[0];
+      if (!PARTS.includes(part)) continue;
+      const filename = segs[segs.length-1];
+      const mPrev = filename.match(/^(.+)_preview\.webp$/i);
+      const mMain = filename.match(/^(.+)\.webp$/i);
+      if (!mPrev && !mMain) continue;
+      const keyStr = (mPrev ? mPrev[1] : mMain[1]);
+      const n = parseInt(keyStr, 10);
+      const key = Number.isFinite(n) ? n : keyStr;
+      const obj = grouped[part].get(key) || { name: `#${keyStr}` };
+      if (mPrev) obj._prev = e.file;
+      if (mMain) obj._main = e.file;
+      grouped[part].set(key, obj);
+    }
+    for (const part of Object.keys(grouped)){
+      for (const [key, obj] of grouped[part].entries()){
+        let mainUrl=null, prevUrl=null;
+        if (obj._main){ const b = await obj._main.async("blob"); mainUrl = URL.createObjectURL(b); }
+        if (obj._prev){ const b2 = await obj._prev.async("blob"); prevUrl = URL.createObjectURL(b2); }
+        if (!mainUrl && prevUrl) mainUrl = prevUrl;
+        if (!prevUrl && mainUrl) prevUrl = mainUrl;
+        grouped[part].set(key, { url: mainUrl, previewUrl: prevUrl, name: obj.name });
+      }
+    }
+    return grouped;
+  }
+
+  function applyAssets(grouped){
+    window.store = window.store || {};
+    store.assets = store.assets || {};
+    for (const part of Object.keys(grouped)){
+      store.assets[part] = grouped[part];
+    }
+    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
+  }
+
+  async function boot(){
+    try{
+      const {buf, from} = await loadFixedZip();
+      const grouped = await zipToAssets(buf);
+      applyAssets(grouped);
+
+      let total = 0;
+      for (const p of Object.keys(store.assets)) total += store.assets[p].size;
+       from: ${from}`);
+
+      try{ if (typeof window.drawSheet === 'function') await window.drawSheet(); }catch(e){ console.warn(e); }
+    }catch(err){
+      console.warn("ZIP load failed completely.", err);
+      
+    }
+  }
+
+  window.addEventListener('load', boot);
+})();
+</script>
+
+
+<!-- PATCH: robust ZIP loader with fallbacks + local file picker -->
+<script>
+(function(){
+  // Candidate URLs (edit as needed)
+  const CANDIDATES = []; // GitHub ZIP URLs removed
+
+  function {
+    let el = document.getElementById("__zip_hud__");
+    if (!el){
+      el = document.createElement('div');
+      el.id = "__zip_hud__";
+      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
+      document.body.appendChild(el);
+    }
+    el.style.background = ok ? '#111' : '#7a1f1f';
+    el.textContent = msg;
+    if (keepMs>0) setTimeout(()=>{ try{el.remove();}catch(_){}} , keepMs);
+    return el;
+  }
+
+  async function fetchZip(url){
+    console.log("[ZIP] fetching:", url);
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status} for ${url}`);
+      err.status = res.status; err.url = url;
+      throw err;
+    }
+    return await res.arrayBuffer();
+  }
 
   async function pickZip(){
     // showOpenFilePicker preferred; fallback simple <input type=file>
@@ -1382,24 +1631,7 @@ async function fetchZip(url){
   // Expose overrides compatible with your existing code if present
   window.fetchZip = async function(url){ return await fetchZip(url); };
 
-  
-window.tryLoadZip = async function(){
-  // Always ask user to choose a ZIP; ignore network
-  const el = document.createElement('div');
-  el.style.cssText='position:fixed;top:12px;right:12px;background:#111;color:#fff;padding:8px 10px;border-radius:10px;font:12px ui-monospace;z-index:99999';
-  el.textContent='ZIP 파일을 선택하세요';
-  document.body.appendChild(el);
-  try{
-    const buf = await (typeof pickZip==='function'?pickZip():Promise.reject(new Error('picker missing')));
-    setTimeout(()=>{ try{el.remove();}catch(_){} }, 1200);
-    return buf; // ArrayBuffer
-  }catch(e){
-    el.textContent='ZIP 선택 취소/실패';
-    setTimeout(()=>{ try{el.remove();}catch(_){}} , 2000);
-    throw e;
-  }
-};
-
+  window.tryLoadZip = async function(){ console.warn('GitHub ZIP loading disabled'); return null; };
 
   // Optional: auto boot if your app expects it
   (async function autoBoot(){
