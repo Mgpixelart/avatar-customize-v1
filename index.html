@@ -1,13 +1,14 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Avatar Customizer — FIX10 (BG bottom-left)</title>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js">
+<head><base href="https://mgpixelart.github.io/avatar-customize-v1/"/>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Avatar Customizer — FIX10 (BG bottom-left)</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js">
 let suppressNextClick=false;
 </script>
-  <style>
+<style>
     *{box-sizing:border-box}
     html,body{height:100%;margin:0}
     body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif;color:#e8ecf1;background:#0b0d12}
@@ -97,7 +98,6 @@ let suppressNextClick=false;
     .left-group .btn{padding:2px 6px;font-size:12px}
     .left-group .btn#clearSelected{min-width:40px;text-align:center}
   </style>
-
 <style>
 /* Hide legacy frame controls */
 #framePrev, #frameNext, #frameRange, #frameInput, .frame-range, .frame-select { display:none !important; }
@@ -157,88 +157,81 @@ let suppressNextClick=false;
 }
 
 </style>
-
 </head>
 <body>
-  <div id="app">
-    <div class="topbar">
-      <div class="title">
-        <h1>Avatar Customizer</h1>
-        <div class="meta">Sheet 432×256 · Face/Skin/Hair/Outfit</div>
-      </div>
-      <div class="actions">
-        <span class="pill" id="perf">Idle</span>
-        <!-- BG picker removed from topbar -->
-        <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip"> <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*"><input id="inFiles" type="file" accept="image/*" multiple style="display:none">
-        <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
-      </div>
-    </div>
-
-    <div id="bodyGrid" class="body">
-      <aside id="leftPanel" class="left">
-        <div class="leftHead">
-          <button id="toggleLeft" class="btn" type="button" title="접기/펼치기">◀</button>
-        </div>
-        <div class="tablist" id="tablist"></div>
-      </aside>
-
-      <section class="mid">
-        <div class="colors" id="colorBar"></div>
-        <div class="grid" id="grid"></div>
-      </section>
-
-      <div class="split" id="split"></div>
-
-      <aside class="right">
-        <div class="stage">
-          <div class="framebar">
-            <div class="framebar-top">
-              <div class="left-group">
-                <span class="pill">프레임 <span id="frameLabel">-</span></span>
-              </div>
-            </div>
-            <div class="framebar-bottom">
-              <div class="export-controls">
-                <select id="exportScale" title="저장 배율" style="margin-right:6px;">
-                  <option value="1" selected>1x</option>
-                  <option value="2">2x</option>
-                  <option value="3">3x</option>
-                  <option value="4">4x</option>
-                  <option value="6">6x</option>
-                  <option value="8">8x</option>
-                </select>
-                <button class="btn" id="saveWebp" title="현재 시트 전체를 WebP 파일로 저장">Sheet</button>
-                <button class="btn" id="saveSelected" title="선택된 프레임들을 하나의 이미지로 합쳐서 저장">Selected</button>
-                <button class="btn" id="saveAllZip" title="모든 프레임(36개)을 ZIP 파일로 저장">All</button>
-                <button class="btn" id="exportFrames" title="선택된 프레임들을 각각 개별 파일로 저장">Frames</button>
-              </div>
-            </div>
-          </div>
-          <div class="view">
-            <div class="canvasWrap" id="canvasWrap">
-              <canvas id="sheet" width="432" height="256"></canvas>
-              <div class="zoom-controls-overlay">
-                <button class="btn" id="zoomOutOverlay" title="축소">−</button>
-                <button class="btn" id="zoomInOverlay" title="확대">＋</button>
-                <button class="btn" id="zoomFitOverlay" title="화면에 맞춤">Fit</button>
-              </div>
-              <!-- NEW: BG picker moved here -->
-              <div class="bg-color-overlay">
-                <label for="bgColor">BG</label>
-                <input id="bgColor" type="color" value="#0b0d12">
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </div>
-
-    <div class="status">
-      <div id="selText" class="mono">face: -, skin: -, hair: -, clothes: -</div>
-      <button class="btn" id="copySel" type="button">Copy</button>
-    </div>
-  </div>
-
+<div id="app">
+<div class="topbar">
+<div class="title">
+<h1>Avatar Customizer</h1>
+<div class="meta">Sheet 432×256 · Face/Skin/Hair/Outfit</div>
+</div>
+<div class="actions">
+<span class="pill" id="perf">Idle</span>
+<!-- BG picker removed from topbar -->
+<label class="btn" for="inZip">Open ZIP</label><input accept="application/zip" id="inZip" type="file"/> <label class="btn" for="inDir">Open Folder</label><input accept="image/*" directory="" id="inDir" multiple="" type="file" webkitdirectory=""/><input accept="image/*" id="inFiles" multiple="" style="display:none" type="file"/>
+<button class="btn" disabled="" id="allRand" type="button">전체 랜덤</button>
+</div>
+</div>
+<div class="body" id="bodyGrid">
+<aside class="left" id="leftPanel">
+<div class="leftHead">
+<button class="btn" id="toggleLeft" title="접기/펼치기" type="button">◀</button>
+</div>
+<div class="tablist" id="tablist"></div>
+</aside>
+<section class="mid">
+<div class="colors" id="colorBar"></div>
+<div class="grid" id="grid"></div>
+</section>
+<div class="split" id="split"></div>
+<aside class="right">
+<div class="stage">
+<div class="framebar">
+<div class="framebar-top">
+<div class="left-group">
+<span class="pill">프레임 <span id="frameLabel">-</span></span>
+</div>
+</div>
+<div class="framebar-bottom">
+<div class="export-controls">
+<select id="exportScale" style="margin-right:6px;" title="저장 배율">
+<option selected="" value="1">1x</option>
+<option value="2">2x</option>
+<option value="3">3x</option>
+<option value="4">4x</option>
+<option value="6">6x</option>
+<option value="8">8x</option>
+</select>
+<button class="btn" id="saveWebp" title="현재 시트 전체를 WebP 파일로 저장">Sheet</button>
+<button class="btn" id="saveSelected" title="선택된 프레임들을 하나의 이미지로 합쳐서 저장">Selected</button>
+<button class="btn" id="saveAllZip" title="모든 프레임(36개)을 ZIP 파일로 저장">All</button>
+<button class="btn" id="exportFrames" title="선택된 프레임들을 각각 개별 파일로 저장">Frames</button>
+</div>
+</div>
+</div>
+<div class="view">
+<div class="canvasWrap" id="canvasWrap">
+<canvas height="256" id="sheet" width="432"></canvas>
+<div class="zoom-controls-overlay">
+<button class="btn" id="zoomOutOverlay" title="축소">−</button>
+<button class="btn" id="zoomInOverlay" title="확대">＋</button>
+<button class="btn" id="zoomFitOverlay" title="화면에 맞춤">Fit</button>
+</div>
+<!-- NEW: BG picker moved here -->
+<div class="bg-color-overlay">
+<label for="bgColor">BG</label>
+<input id="bgColor" type="color" value="#0b0d12"/>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</div>
+<div class="status">
+<div class="mono" id="selText">face: -, skin: -, hair: -, clothes: -</div>
+<button class="btn" id="copySel" type="button">Copy</button>
+</div>
+</div>
 <script>
 (function(){
   const ORDER = ['skin','clothes','face','hair','glass'];
@@ -799,8 +792,6 @@ frameIndexEl.addEventListener('change', ()=>{ frameIndexEl.value = clampFrame(+f
   }
 })();
 </script>
-
-
 <script>
 async function encodeWebPFromCanvas(canvas, {lossless=true, quality=1.0}={}){
   if ('ImageEncoder' in window) {
@@ -814,9 +805,6 @@ async function encodeWebPFromCanvas(canvas, {lossless=true, quality=1.0}={}){
   return await new Promise(res=> canvas.toBlob(res, 'image/webp', quality));
 }
 </script>
-
-
-
 <script>
 // Global fileBase for download handlers in other scripts
 window.fileBase = function fileBase(){
@@ -834,7 +822,6 @@ window.fileBase = function fileBase(){
   return 'sheet';
 };
 </script>
-
 <script>
 document.addEventListener('DOMContentLoaded', ()=>{
   try {
@@ -1188,8 +1175,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 });
 </script>
-
-
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const canvasWrap = document.getElementById("canvasWrap");
@@ -1207,7 +1192,6 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 </script>
-
 <script>
 (function(){
   const grid = document.getElementById('grid');
@@ -1261,10 +1245,6 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 })();
 </script>
-
-
-
-
 <script>
 (function(){
   const selText = document.getElementById('selText');
@@ -1278,3 +1258,4 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 })();
 </script>
+</body></html>
