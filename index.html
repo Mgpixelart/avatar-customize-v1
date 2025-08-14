@@ -1,18 +1,28 @@
 <!DOCTYPE html>
 
 <html lang="ko">
+<head>
 
-<script>
-  const isLocal = location.hostname === "localhost" || location.protocol === "file:";
-  const base = document.createElement("base");
-  base.href = isLocal ? "./" : "https://mgpixelart.github.io/avatar-customize-v1/";
-  document.head.prepend(base);
-</script>
+
+  <script>
+    (function () {
+      const isLocal = location.hostname === "" || location.hostname === "localhost" || location.protocol === "file:";
+      const repoBase = location.hostname.endsWith("github.io")
+        ? ("/" + (location.pathname.split("/")[1] || "") + "/")
+        : "./";
+      const base = document.createElement("base");
+      base.href = isLocal ? "./" : repoBase;
+      document.head.appendChild(base);
+      window.suppressNextClick = false;
+    })();
+  </script>
+
 
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Avatar Customizer — FIX10 (BG bottom-left)</title>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
 let suppressNextClick=false;
 </script>
 <style>
