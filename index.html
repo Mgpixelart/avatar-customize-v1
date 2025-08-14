@@ -1428,4 +1428,133 @@ document.addEventListener("DOMContentLoaded", function() {
 </script>
 
 
+
+<!-- FIXED ZIP LOADER: always use assets/current.zip with raw fallback -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+(function(){
+  const GH_OWNER = "mgpixelart";
+  const GH_REPO  = "avatar-customize-v1";
+  const BRANCH   = "main";
+
+  // 1st: Pages-hosted file (same origin) → fastest & no CORS issue
+  const PRIMARY = "assets/current.zip";
+  // 2nd: Raw GitHub URL fallback (CORS OK for GET)
+  const RAW_FALLBACK = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${BRANCH}/assets/current.zip`;
+
+  const PARTS = ["face","skin","hair","clothes","glass","hat","mask","beard","back","front","necklace","shirt","eyes","eyebrow","mouth","ear","body"];
+
+  function hud(msg, ok=true, keepMs=2500){
+    let el = document.getElementById("__zip_hud__");
+    if (!el){
+      el = document.createElement('div');
+      el.id = "__zip_hud__";
+      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
+      document.body.appendChild(el);
+    }
+    el.style.background = ok ? '#111' : '#822';
+    el.textContent = msg;
+    if (keepMs>0) setTimeout(()=>{ if (el) el.remove(); }, keepMs);
+    return el;
+  }
+
+  async function fetchZip(url){
+    const res = await fetch(url, { cache: 'no-cache' });
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status} for ${url}`);
+      err.status = res.status;
+      err.url = url;
+      throw err;
+    }
+    return res.arrayBuffer();
+  }
+
+  async function loadFixedZip(){
+    // Try PRIMARY then RAW_FALLBACK
+    try{
+      hud(`ZIP: ${PRIMARY} ...`, true, 0);
+      const buf = await fetchZip(PRIMARY);
+      hud(`ZIP OK: ${PRIMARY}`, true, 1500);
+      return {buf, from: PRIMARY};
+    }catch(e1){
+      console.warn("PRIMARY failed:", e1);
+      try{
+        hud(`ZIP fallback: raw ...`, true, 0);
+        const buf2 = await fetchZip(RAW_FALLBACK);
+        hud(`ZIP OK: raw`, true, 1500);
+        return {buf: buf2, from: RAW_FALLBACK};
+      }catch(e2){
+        throw e2;
+      }
+    }
+  }
+
+  async function zipToAssets(buf){
+    const zip = await JSZip.loadAsync(buf);
+    const entries = [];
+    zip.forEach((rel, file) => {
+      if (!file.dir && /\.webp$/i.test(rel)) entries.push({ name: rel, file });
+    });
+    const grouped = {};
+    for (const part of PARTS) grouped[part] = new Map();
+    for (const e of entries){
+      const segs = e.name.replace(/^\.?\/*/, "").split("/");
+      if (segs.length < 2) continue;
+      const part = segs[0];
+      if (!PARTS.includes(part)) continue;
+      const filename = segs[segs.length-1];
+      const mPrev = filename.match(/^(.+)_preview\.webp$/i);
+      const mMain = filename.match(/^(.+)\.webp$/i);
+      if (!mPrev && !mMain) continue;
+      const keyStr = (mPrev ? mPrev[1] : mMain[1]);
+      const n = parseInt(keyStr, 10);
+      const key = Number.isFinite(n) ? n : keyStr;
+      const obj = grouped[part].get(key) || { name: `#${keyStr}` };
+      if (mPrev) obj._prev = e.file;
+      if (mMain) obj._main = e.file;
+      grouped[part].set(key, obj);
+    }
+    for (const part of Object.keys(grouped)){
+      for (const [key, obj] of grouped[part].entries()){
+        let mainUrl=null, prevUrl=null;
+        if (obj._main){ const b = await obj._main.async("blob"); mainUrl = URL.createObjectURL(b); }
+        if (obj._prev){ const b2 = await obj._prev.async("blob"); prevUrl = URL.createObjectURL(b2); }
+        if (!mainUrl && prevUrl) mainUrl = prevUrl;
+        if (!prevUrl && mainUrl) prevUrl = mainUrl;
+        grouped[part].set(key, { url: mainUrl, previewUrl: prevUrl, name: obj.name });
+      }
+    }
+    return grouped;
+  }
+
+  function applyAssets(grouped){
+    window.store = window.store || {};
+    store.assets = store.assets || {};
+    for (const part of Object.keys(grouped)){
+      store.assets[part] = grouped[part];
+    }
+    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
+  }
+
+  async function boot(){
+    try{
+      const {buf, from} = await loadFixedZip();
+      const grouped = await zipToAssets(buf);
+      applyAssets(grouped);
+
+      let total = 0;
+      for (const p of Object.keys(store.assets)) total += store.assets[p].size;
+      hud(`ZIP loaded (${total} items) from: ${from}`);
+
+      try{ if (typeof window.drawSheet === 'function') await window.drawSheet(); }catch(e){ console.warn(e); }
+    }catch(err){
+      console.warn("ZIP load failed completely.", err);
+      hud(`ZIP 로드 실패: ${err.message}`, false, 5000);
+    }
+  }
+
+  window.addEventListener('load', boot);
+})();
+</script>
+
 </body></html>
