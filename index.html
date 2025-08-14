@@ -23,6 +23,29 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Avatar Customizer — FIX10 (BG bottom-left)</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<!-- PATCH: JSZip loadAsync shim + verbose errors -->
+<script>
+(function(){
+  if (window.JSZip && typeof JSZip.loadAsync === 'function'){
+    const _orig = JSZip.loadAsync.bind(JSZip);
+    JSZip.loadAsync = function(input, ...rest){
+      // If already a JSZip instance, just resolve it
+      if (input && typeof input === 'object' && typeof input.file === 'function' && typeof input.folder === 'function'){
+        return Promise.resolve(input);
+      }
+      try {
+        return _orig(input, ...rest);
+      } catch (e) {
+        console.error("[JSZip] loadAsync error:", e);
+        throw e;
+      }
+    };
+  }
+})();
+</script>
+<!-- END PATCH -->
+
 <script>
 let suppressNextClick=false;
 </script>
@@ -1305,307 +1328,28 @@ document.addEventListener("DOMContentLoaded", function() {
     return el;
   }
 
-  async function fetchZip(url){
-    console.log("[ZIP] fetching:", url);
-    const res = await fetch(url, { cache: 'no-cache' });
-    if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} for ${url}`);
-      err.status = res.status;
-      err.url = url;
-      throw err;
-    }
-    return res.arrayBuffer();
+  
+async function fetchZip(url){
+  console.log("[ZIP] fetching:", url);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} for ${url}`);
+    err.status = res.status; err.url = url;
+    throw err;
   }
-
-  async function tryLoadZip(urls){
-    let lastErr = null;
-    for (const u of urls){
-      try{
-        hud(`Loading ZIP: ${u} ...`, true, 0);
-        const buf = await fetchZip(u);
-        hud(`ZIP loaded: ${u}`, true, 1500);
-        return await JSZip.loadAsync(buf);
-      }catch(e){
-        console.warn("[ZIP] failed:", e);
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error("No ZIP candidate worked");
+  const buf = await res.arrayBuffer();
+  // ZIP signature 'PK' = 0x50 0x4B
+  const view = new Uint8Array(buf.slice(0, 2));
+  const isZip = view.length >= 2 && view[0] === 0x50 && view[1] === 0x4B;
+  if (!isZip){
+    const textHead = new TextDecoder().decode(new Uint8Array(buf.slice(0, 120)));
+    const err = new Error("Not a ZIP (signature mismatch). Head: " + textHead.replace(/\s+/g,' ').slice(0, 80));
+    err.url = url;
+    throw err;
   }
+  return buf;
+}
 
-  async function zipToAssets(buf){
-    const zip = await JSZip.loadAsync(buf);
-    // Collect .webp entries
-    const entries = [];
-    zip.forEach((rel, file) => {
-      if (!file.dir && /\.webp$/i.test(rel)) entries.push({ name: rel, file });
-    });
-    // Group
-    const grouped = {};
-    for (const part of PARTS) grouped[part] = new Map();
-    for (const e of entries){
-      const path = e.name.replace(/^\.?\/*/, "");
-      const segs = path.split("/");
-      if (segs.length < 2) continue;
-      const part = segs[0];
-      if (!PARTS.includes(part)) continue;
-      const filename = segs[segs.length-1];
-      const mPrev = filename.match(/^(.+)_preview\.webp$/i);
-      const mMain = filename.match(/^(.+)\.webp$/i);
-      if (!mPrev && !mMain) continue;
-      const keyStr = (mPrev ? mPrev[1] : mMain[1]);
-      const n = parseInt(keyStr, 10);
-      const key = Number.isFinite(n) ? n : keyStr;
-      const obj = grouped[part].get(key) || { name: `#${keyStr}` };
-      if (mPrev) obj._prev = e.file;
-      if (mMain) obj._main = e.file;
-      grouped[part].set(key, obj);
-    }
-    // Blob URLs
-    for (const part of Object.keys(grouped)){
-      for (const [key, obj] of grouped[part].entries()){
-        let mainUrl=null, prevUrl=null;
-        if (obj._main){ const b = await obj._main.async("blob"); mainUrl = URL.createObjectURL(b); }
-        if (obj._prev){ const b2= await obj._prev.async("blob"); prevUrl = URL.createObjectURL(b2); }
-        if (!mainUrl && prevUrl) mainUrl = prevUrl;
-        if (!prevUrl && mainUrl) prevUrl = mainUrl;
-        grouped[part].set(key, { url: mainUrl, previewUrl: prevUrl, name: obj.name });
-      }
-    }
-    return grouped;
-  }
-
-  function applyAssets(grouped){
-    window.store = window.store || {};
-    store.assets = store.assets || {};
-    for (const part of Object.keys(grouped)){
-      store.assets[part] = grouped[part];
-    }
-    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
-  }
-
-  function showPicker(onPick){
-    // Floating panel
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;bottom:12px;left:12px;background:#1e1e1e;color:#fff;padding:10px 12px;border-radius:10px;font:12px monospace;z-index:99999;box-shadow:0 6px 18px rgba(0,0,0,.35)';
-    wrap.innerHTML = `
-      <div style="margin-bottom:6px">ZIP를 선택해서 로드할 수 있습니다.</div>
-      <input type="file" accept=".zip" id="__zip_file__">
-      <button id="__zip_close__" style="margin-left:8px;">닫기</button>
-    `;
-    document.body.appendChild(wrap);
-    const inp = wrap.querySelector('#__zip_file__');
-    const closeBtn = wrap.querySelector('#__zip_close__');
-    inp.addEventListener('change', async (e)=>{
-      const f = inp.files && inp.files[0];
-      if (!f) return;
-      hud(`Loading local ZIP: ${f.name} ...`, true, 0);
-      try{
-        const buf = await f.arrayBuffer();
-        await onPick(buf);
-        hud(`Loaded local ZIP: ${f.name}`, true, 2000);
-        wrap.remove();
-      }catch(err){
-        hud(`로컬 ZIP 로드 실패: ${err.message}`, false, 4000);
-      }
-    });
-    closeBtn.addEventListener('click', ()=>wrap.remove());
-  }
-
-  async function boot(){
-    const {zip} = parseQuery();
-    const candidates = zip ? [zip] : DEFAULTS.slice();
-    try{
-      const {buf, from} = await tryLoadZip(candidates);
-      const grouped = await zipToAssets(buf);
-      applyAssets(grouped);
-      let total=0; for (const p of Object.keys(store.assets)) total+=store.assets[p].size;
-      hud(`ZIP OK: ${from} (${total} items)`);
-      try { if (typeof window.drawSheet==='function') await window.drawSheet(); } catch(e){ console.warn(e); }
-    }catch(err){
-      console.warn("All ZIP fetch failed.", err);
-      hud(`ZIP 404/에러: ${err.url||''} → 로컬 ZIP 선택 가능`, false, 4000);
-      showPicker(async (buf)=>{
-        const grouped = await zipToAssets(buf);
-        applyAssets(grouped);
-        let total=0; for (const p of Object.keys(store.assets)) total+=store.assets[p].size;
-        try { if (typeof window.drawSheet==='function') await window.drawSheet(); } catch(e){}
-      });
-    }
-  }
-
-  window.addEventListener('load', boot);
-})();
-</script>
-
-
-
-<!-- FIXED ZIP LOADER: always use assets/current.zip with raw fallback -->
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script>
-(function(){
-  const GH_OWNER = "mgpixelart";
-  const GH_REPO  = "avatar-customize-v1";
-  const BRANCH   = "main";
-
-  // 1st: Pages-hosted file (same origin) → fastest & no CORS issue
-  const PRIMARY = "assets/current.zip";
-  // 2nd: Raw GitHub URL fallback (CORS OK for GET)
-  const RAW_FALLBACK = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${BRANCH}/assets/current.zip`;
-
-  const PARTS = ["face","skin","hair","clothes","glass","hat","mask","beard","back","front","necklace","shirt","eyes","eyebrow","mouth","ear","body"];
-
-  function hud(msg, ok=true, keepMs=2500){
-    let el = document.getElementById("__zip_hud__");
-    if (!el){
-      el = document.createElement('div');
-      el.id = "__zip_hud__";
-      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
-      document.body.appendChild(el);
-    }
-    el.style.background = ok ? '#111' : '#822';
-    el.textContent = msg;
-    if (keepMs>0) setTimeout(()=>{ if (el) el.remove(); }, keepMs);
-    return el;
-  }
-
-  async function fetchZip(url){
-    const res = await fetch(url, { cache: 'no-cache' });
-    if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} for ${url}`);
-      err.status = res.status;
-      err.url = url;
-      throw err;
-    }
-    return res.arrayBuffer();
-  }
-
-  async function loadFixedZip(){
-    // Try PRIMARY then RAW_FALLBACK
-    try{
-      hud(`ZIP: ${PRIMARY} ...`, true, 0);
-      const buf = await fetchZip(PRIMARY);
-      hud(`ZIP OK: ${PRIMARY}`, true, 1500);
-      return {buf, from: PRIMARY};
-    }catch(e1){
-      console.warn("PRIMARY failed:", e1);
-      try{
-        hud(`ZIP fallback: raw ...`, true, 0);
-        const buf2 = await fetchZip(RAW_FALLBACK);
-        hud(`ZIP OK: raw`, true, 1500);
-        return {buf: buf2, from: RAW_FALLBACK};
-      }catch(e2){
-        throw e2;
-      }
-    }
-  }
-
-  async function zipToAssets(buf){
-    const zip = await JSZip.loadAsync(buf);
-    const entries = [];
-    zip.forEach((rel, file) => {
-      if (!file.dir && /\.webp$/i.test(rel)) entries.push({ name: rel, file });
-    });
-    const grouped = {};
-    for (const part of PARTS) grouped[part] = new Map();
-    for (const e of entries){
-      const segs = e.name.replace(/^\.?\/*/, "").split("/");
-      if (segs.length < 2) continue;
-      const part = segs[0];
-      if (!PARTS.includes(part)) continue;
-      const filename = segs[segs.length-1];
-      const mPrev = filename.match(/^(.+)_preview\.webp$/i);
-      const mMain = filename.match(/^(.+)\.webp$/i);
-      if (!mPrev && !mMain) continue;
-      const keyStr = (mPrev ? mPrev[1] : mMain[1]);
-      const n = parseInt(keyStr, 10);
-      const key = Number.isFinite(n) ? n : keyStr;
-      const obj = grouped[part].get(key) || { name: `#${keyStr}` };
-      if (mPrev) obj._prev = e.file;
-      if (mMain) obj._main = e.file;
-      grouped[part].set(key, obj);
-    }
-    for (const part of Object.keys(grouped)){
-      for (const [key, obj] of grouped[part].entries()){
-        let mainUrl=null, prevUrl=null;
-        if (obj._main){ const b = await obj._main.async("blob"); mainUrl = URL.createObjectURL(b); }
-        if (obj._prev){ const b2 = await obj._prev.async("blob"); prevUrl = URL.createObjectURL(b2); }
-        if (!mainUrl && prevUrl) mainUrl = prevUrl;
-        if (!prevUrl && mainUrl) prevUrl = mainUrl;
-        grouped[part].set(key, { url: mainUrl, previewUrl: prevUrl, name: obj.name });
-      }
-    }
-    return grouped;
-  }
-
-  function applyAssets(grouped){
-    window.store = window.store || {};
-    store.assets = store.assets || {};
-    for (const part of Object.keys(grouped)){
-      store.assets[part] = grouped[part];
-    }
-    store.pick = store.pick || { face:-1, skin:-1, hair:-1, clothes:-1 };
-  }
-
-  async function boot(){
-    try{
-      const {buf, from} = await loadFixedZip();
-      const grouped = await zipToAssets(buf);
-      applyAssets(grouped);
-
-      let total = 0;
-      for (const p of Object.keys(store.assets)) total += store.assets[p].size;
-      hud(`ZIP loaded (${total} items) from: ${from}`);
-
-      try{ if (typeof window.drawSheet === 'function') await window.drawSheet(); }catch(e){ console.warn(e); }
-    }catch(err){
-      console.warn("ZIP load failed completely.", err);
-      hud(`ZIP 로드 실패: ${err.message}`, false, 5000);
-    }
-  }
-
-  window.addEventListener('load', boot);
-})();
-</script>
-
-
-<!-- PATCH: robust ZIP loader with fallbacks + local file picker -->
-<script>
-(function(){
-  // Candidate URLs (edit as needed)
-  const CANDIDATES = [
-    "assets/current.zip",
-    "assets/avatar-parts-webp.zip",
-    // GitHub Releases example (uncomment and set):
-    // "https://github.com/Mgpixelart/avatar-customize-v1/releases/download/v1.0.0/current.zip",
-    // Raw fallback:
-    "https://raw.githubusercontent.com/Mgpixelart/avatar-customize-v1/main/assets/current.zip"
-  ];
-
-  function hud(msg, ok=true, keepMs=2200){
-    let el = document.getElementById("__zip_hud__");
-    if (!el){
-      el = document.createElement('div');
-      el.id = "__zip_hud__";
-      el.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:8px 12px;background:#111;color:#fff;font:12px monospace;border-radius:8px;opacity:.95;z-index:99999;box-shadow:0 4px 10px rgba(0,0,0,.25)';
-      document.body.appendChild(el);
-    }
-    el.style.background = ok ? '#111' : '#7a1f1f';
-    el.textContent = msg;
-    if (keepMs>0) setTimeout(()=>{ try{el.remove();}catch(_){}} , keepMs);
-    return el;
-  }
-
-  async function fetchZip(url){
-    console.log("[ZIP] fetching:", url);
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} for ${url}`);
-      err.status = res.status; err.url = url;
-      throw err;
-    }
-    return await res.arrayBuffer();
-  }
 
   async function pickZip(){
     // showOpenFilePicker preferred; fallback simple <input type=file>
@@ -1645,7 +1389,7 @@ document.addEventListener("DOMContentLoaded", function() {
         hud("로컬 ZIP 선택…", true, 0);
         const buf = await pickZip();
         hud("로컬 ZIP 로드 성공", true, 1600);
-        return await JSZip.loadAsync(buf);
+        return buf;
       }catch(e){
         hud("로컬 ZIP 선택 실패", false, 2600);
         throw e;
@@ -1670,7 +1414,7 @@ document.addEventListener("DOMContentLoaded", function() {
       hud("ZIP 자동 로드 실패 → 직접 선택", false, 1800);
       const buf = await pickZip();
       hud("수동 ZIP 로드 성공", true, 1600);
-      return await JSZip.loadAsync(buf);
+      return buf;
     }catch(e){
       throw lastErr || e || new Error("All ZIP fetch failed");
     }
