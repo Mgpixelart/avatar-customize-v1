@@ -1324,7 +1324,7 @@ document.addEventListener("DOMContentLoaded", function() {
         hud(`Loading ZIP: ${u} ...`, true, 0);
         const buf = await fetchZip(u);
         hud(`ZIP loaded: ${u}`, true, 1500);
-        return {buf, from:u};
+        return await JSZip.loadAsync(buf);
       }catch(e){
         console.warn("[ZIP] failed:", e);
         lastErr = e;
@@ -1684,82 +1684,5 @@ document.addEventListener("DOMContentLoaded", function() {
 })();
 </script>
 <!-- END PATCH: robust ZIP loader -->
-
-
-<!-- PATCH: debug overlay to visualize loaded images -->
-<style>
-#zipDebugPanel{position:fixed;top:12px;right:12px;width:360px;max-height:70vh;overflow:auto;background:#0b1020;color:#e5e7eb;border:1px solid #334155;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,.4);z-index:99999;display:none}
-#zipDebugPanel header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #1f2937;font:12px/1 ui-monospace,Menlo,Consolas}
-#zipDebugPanel .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px}
-#zipDebugPanel img{width:72px;height:72px;object-fit:contain;background:#0f172a;border:1px solid #1f2937;border-radius:8px}
-#zipDebugToggle{position:fixed;top:12px;right:12px;z-index:99998;padding:6px 10px;border-radius:10px;background:#111827;color:#fff;border:1px solid #374151;font:12px ui-monospace}
-</style>
-<button id="zipDebugToggle">DBG</button>
-<div id="zipDebugPanel">
-  <header>
-    <div>ZIP Debug <span id="zipDbgCount"></span></div>
-    <div>
-      <button id="zipDbgClose" style="background:#111827;color:#fff;border:1px solid #374151;border-radius:8px;padding:4px 8px">닫기</button>
-    </div>
-  </header>
-  <div id="zipDbgInfo" style="padding:8px 10px;font:12px/1.4 ui-monospace"></div>
-  <div class="grid" id="zipDbgGrid"></div>
-</div>
-<script>
-(function(){
-  const toggle = document.getElementById('zipDebugToggle');
-  const panel  = document.getElementById('zipDebugPanel');
-  const close  = document.getElementById('zipDbgClose');
-  const info   = document.getElementById('zipDbgInfo');
-  const grid   = document.getElementById('zipDbgGrid');
-  const countEl= document.getElementById('zipDbgCount');
-  toggle.addEventListener('click', ()=>{ panel.style.display = panel.style.display==='none'?'block':'none'; });
-  close.addEventListener('click', ()=>{ panel.style.display='none'; });
-
-  function isImagePath(p){
-    return /\.(png|webp|jpg|jpeg|gif)$/i.test(p);
-  }
-
-  async function fileToDataUrl(entry){
-    const blob = new Blob([await entry.async('arraybuffer')]);
-    return URL.createObjectURL(blob);
-  }
-
-  async function buildFromZip(zip){
-    const files = [];
-    zip.forEach((path, entry)=>{
-      if (!entry.dir && isImagePath(path)) files.push({path, entry});
-    });
-    files.sort((a,b)=> a.path.localeCompare(b.path));
-    countEl.textContent = `(${files.length} 이미지)`;
-    info.textContent = files.slice(0,8).map(f=>f.path).join('\n') + (files.length>8?'\n…':'');
-
-    grid.innerHTML = '';
-    const showCount = Math.min(40, files.length);
-    for (let i=0;i<showCount;i++){
-      const f = files[i];
-      const url = await fileToDataUrl(f.entry);
-      const img = document.createElement('img');
-      img.src = url;
-      img.title = f.path;
-      grid.appendChild(img);
-    }
-    panel.style.display = 'block';
-  }
-
-  // Hook tryLoadZip to also visualize
-  const origTry = window.tryLoadZip;
-  window.tryLoadZip = async function(){
-    const zip = await origTry();
-    window.__ZIP_DEBUG_LAST__ = zip;
-    // Defer to allow app to run first; auto-open panel if nothing appears
-    setTimeout(()=>{
-      buildFromZip(zip).catch(()=>{});
-    }, 800);
-    return zip;
-  };
-})();
-</script>
-<!-- END PATCH: debug overlay -->
 
 </body></html>
