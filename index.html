@@ -1382,43 +1382,24 @@ async function fetchZip(url){
   // Expose overrides compatible with your existing code if present
   window.fetchZip = async function(url){ return await fetchZip(url); };
 
-  window.tryLoadZip = async function(){
-    // local: prefer picker to avoid file:// fetch limitations
-    if (window.__IS_LOCAL__) {
-      try{
-        hud("로컬 ZIP 선택…", true, 0);
-        const buf = await pickZip();
-        hud("로컬 ZIP 로드 성공", true, 1600);
-        return buf;
-      }catch(e){
-        hud("로컬 ZIP 선택 실패", false, 2600);
-        throw e;
-      }
-    }
-    // web: try candidates; on failure, allow manual pick
-    let lastErr = null;
-    for (const u of CANDIDATES){
-      try{
-        hud(`ZIP 로딩 중: ${u}`, true, 0);
-        const buf = await fetchZip(u);
-        const zip = await JSZip.loadAsync(buf);
-        hud(`ZIP 로드 성공: ${u}`, true, 1500);
-        return zip;
-      }catch(e){
-        lastErr = e;
-        console.warn("[ZIP] fail:", e);
-      }
-    }
-    // Offer manual picker on web too
-    try{
-      hud("ZIP 자동 로드 실패 → 직접 선택", false, 1800);
-      const buf = await pickZip();
-      hud("수동 ZIP 로드 성공", true, 1600);
-      return buf;
-    }catch(e){
-      throw lastErr || e || new Error("All ZIP fetch failed");
-    }
-  };
+  
+window.tryLoadZip = async function(){
+  // Always ask user to choose a ZIP; ignore network
+  const el = document.createElement('div');
+  el.style.cssText='position:fixed;top:12px;right:12px;background:#111;color:#fff;padding:8px 10px;border-radius:10px;font:12px ui-monospace;z-index:99999';
+  el.textContent='ZIP 파일을 선택하세요';
+  document.body.appendChild(el);
+  try{
+    const buf = await (typeof pickZip==='function'?pickZip():Promise.reject(new Error('picker missing')));
+    setTimeout(()=>{ try{el.remove();}catch(_){} }, 1200);
+    return buf; // ArrayBuffer
+  }catch(e){
+    el.textContent='ZIP 선택 취소/실패';
+    setTimeout(()=>{ try{el.remove();}catch(_){}} , 2000);
+    throw e;
+  }
+};
+
 
   // Optional: auto boot if your app expects it
   (async function autoBoot(){
