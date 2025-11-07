@@ -3,26 +3,27 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Avatar Customizer — Fixed Multi-Select + Exports</title>
+<title>Avatar Customizer — Robust Import + CDN Scan + Exports</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif;color:#e8ecf1;background:#0b0d12}
-#app{height:100%;display:grid;grid-template-rows:42px 1fr 30px}
-:root{--rightW:520px; --leftW:230px; --leftWCollapsed:48px}
+#app{height:100%;display:grid;grid-template-rows:48px 1fr 30px}
+:root{--rightW:560px; --leftW:230px; --leftWCollapsed:48px}
 
 /* TOP */
-.topbar{display:flex;align-items:center;justify-content:space-between;height:42px;padding:0 10px;background:#0d1220;border-bottom:1px solid #1d2538}
+.topbar{display:flex;align-items:center;justify-content:space-between;height:48px;padding:0 10px;background:#0d1220;border-bottom:1px solid #1d2538}
 .title{display:flex;gap:10px;align-items:center}
 .title h1{margin:0;font-size:1rem;line-height:1}
 .title .meta{font-size:.8rem;color:#95a0b3}
 .actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:4px 8px;font-size:.85rem;cursor:pointer}
+.btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:6px 10px;font-size:.85rem;cursor:pointer}
 .btn:disabled{opacity:.5;cursor:default}
-select{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:4px 8px}
+select{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:6px 10px}
 input[type="file"]{display:none}
 .pill{font-size:.78rem;color:#9ac3ff}
+.pill.warn{color:#ffb4b4}
 
 /* BODY */
 .body{height:100%;display:grid;grid-template-columns:var(--leftW) 1fr 6px var(--rightW);gap:8px;padding:8px;min-height:0}
@@ -71,7 +72,7 @@ input[type="file"]{display:none}
 .stage{display:grid;grid-template-rows:auto 1fr;min-height:0}
 .framebar{display:flex;flex-direction:column;gap:6px;padding:8px;border-bottom:1px solid #1d2538;background:#10182a;overflow-x:auto}
 .framebar-top{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;row-gap:8px}
-.zoom-controls,.export-controls{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.zoom-controls,.export-controls,.scan-controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .view{display:grid;place-items:center;padding:8px;min-height:0}
 .canvasWrap{display:block;overflow:auto;border-radius:12px;border:1px solid #203055;max-width:100%;max-height:100%;width:100%;height:100%;background:#0b0d12;cursor:default;position:relative}
 #sheet{image-rendering:pixelated;display:block}
@@ -85,7 +86,7 @@ input[type="file"]{display:none}
 
 /* FOOTER */
 .status{display:flex;gap:8px;align-items:center;background:#0d1220;border-top:1px solid #1d2538;padding:4px 8px}
-.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:.82rem;color:#bcd0ff;background:#0f1424;border:1px solid #243152;border-radius:8px;padding:3px 8px;flex:1;overflow:auto;white-space:nowrap}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem;color:#bcd0ff;background:#0f1424;border:1px solid #243152;border-radius:8px;padding:3px 8px;flex:1;overflow:auto;white-space:nowrap}
 .left-group{display:flex;gap:6px;align-items:center}
 
 /* scrollbars */
@@ -100,13 +101,15 @@ input[type="file"]{display:none}
   <div class="topbar">
     <div class="title">
       <h1>Avatar Customizer</h1>
-      <div class="meta">Sheet 432×256 · Face/Skin/Hair/Outfit</div>
+      <div class="meta">432×256 sheet · Face/Skin/Hair/Clothes/Glass</div>
     </div>
     <div class="actions">
       <span class="pill" id="perf">Idle</span>
+      <span class="pill warn" id="corsState" title="외부 이미지가 섞이면 저장/내보내기 제한">export: ok</span>
       <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip">
       <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*">
       <input id="inFiles" type="file" accept="image/*" multiple style="display:none">
+      <button class="btn" id="cdnScan" type="button">CDN Auto-Scan</button>
       <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
     </div>
   </div>
@@ -133,6 +136,17 @@ input[type="file"]{display:none}
             <div class="left-group">
               <span class="pill">프레임 <span id="frameLabel">-</span></span>
             </div>
+            <div class="scan-controls">
+              <label>part</label>
+              <select id="scanPart">
+                <option value="face">face</option>
+                <option value="skin">skin</option>
+                <option value="hair">hair</option>
+                <option value="clothes">clothes</option>
+                <option value="glass">glass</option>
+              </select>
+              <button class="btn" id="scanGo" title="빠른 스캔 시작">Scan</button>
+            </div>
             <div class="zoom-controls">
               <button class="btn" id="zoomInOverlay" title="확대">＋</button>
               <button class="btn" id="zoomFitOverlay" title="화면에 맞춤">Fit</button>
@@ -146,10 +160,10 @@ input[type="file"]{display:none}
                 <option value="6">6x</option>
                 <option value="8">8x</option>
               </select>
-              <button class="btn" id="saveWebp" title="현재 시트 전체를 WebP 파일로 저장">Sheet</button>
-              <button class="btn" id="saveSelected" title="선택된 프레임들을 하나로 저장">Selected</button>
-              <button class="btn" id="saveAllZip" title="모든 프레임(36개) ZIP">All</button>
-              <button class="btn" id="exportFrames" title="선택된 프레임을 개별 저장">Frames</button>
+              <button class="btn" id="saveWebp" title="현재 시트 전체 저장">Sheet</button>
+              <button class="btn" id="saveSelected" title="선택 프레임들 1파일">Selected</button>
+              <button class="btn" id="saveAllZip" title="모든 프레임(36) ZIP">All</button>
+              <button class="btn" id="exportFrames" title="선택 프레임 각각 저장">Frames</button>
             </div>
           </div>
         </div>
@@ -174,7 +188,7 @@ input[type="file"]{display:none}
 
 <script>
 (function(){
-  /* ===== STATE ===== */
+  /* ===== constants/state ===== */
   const ORDER = ['skin','clothes','face','hair','glass'];
   const PART_LABEL = {face:'얼굴', skin:'피부', hair:'헤어', clothes:'의상', glass:'안경'};
   const PART_ICON  = {face:'🙂', skin:'🧴', hair:'✂️', clothes:'👕', glass:'👓'};
@@ -182,12 +196,17 @@ input[type="file"]{display:none}
   const COLORABLE = new Set(['hair','clothes']);
   const COLOR_HEX = ['#111111','#8b8b99','#e58a2b','#f2c94c','#3772ff','#7ed0ff','#8b5e34','#9b59b6','#ff66b3','#eaeaea','#ff3b30','#2ecc71'];
   const BALD_MIN=-144, BALD_MAX=-133;
+  const ZEP_BASE='https://cdn-static.zep.us/static/assets/sprites';
 
   const perf = document.getElementById('perf');
+  const corsState = document.getElementById('corsState');
   const bgColor = document.getElementById('bgColor');
   const inZip = document.getElementById('inZip');
   const inDir = document.getElementById('inDir');
   const inFiles = document.getElementById('inFiles');
+  const cdnScanBtn = document.getElementById('cdnScan');
+  const scanPartSel = document.getElementById('scanPart');
+  const scanGoBtn = document.getElementById('scanGo');
   const allRand = document.getElementById('allRand');
   const bodyGrid = document.getElementById('bodyGrid');
   const leftPanel = document.getElementById('leftPanel');
@@ -208,7 +227,6 @@ input[type="file"]{display:none}
   const saveAllZipBtn = document.getElementById('saveAllZip');
   const exportFramesBtn = document.getElementById('exportFrames');
 
-  // global selection state for right-canvas frames
   const selectionState = { selected:new Set(), hover:-1 };
 
   const store = window.store = {
@@ -221,14 +239,52 @@ input[type="file"]{display:none}
     _anchorShape: null
   };
 
+  function isExternalUrl(u){
+    try{
+      if (!u) return false;
+      if (u.startsWith('blob:') || u.startsWith('data:')) return false;
+      const a = new URL(u, location.href);
+      return a.origin !== location.origin;
+    }catch{ return false; }
+  }
+  function refreshExportLock(){
+    let locked=false;
+    for(const p of PARTS){
+      for(const v of store.assets[p].values()){
+        if (v && v.url && isExternalUrl(v.url)) { locked=true; break; }
+      }
+      if(locked) break;
+    }
+    corsState.textContent = locked ? 'export: CORS-locked' : 'export: ok';
+    corsState.title = locked ? '외부(CDN) 이미지가 섞임 — 다운로드가 차단될 수 있음 (ZIP/폴더로 불러오면 해결)' : '내보내기 가능';
+    saveWebpBtn.disabled = locked;
+    saveSelectedBtn.disabled = locked;
+    saveAllZipBtn.disabled = locked;
+    exportFramesBtn.disabled = locked;
+  }
+
   /* ===== helpers ===== */
   function colorIdxFromShape(shape){ return ((-shape - 1) % 12 + 12) % 12; }
   function blockFromShape(shape){ return Math.floor(((-shape - 1) / 12)); }
   function shapeFromBlockColor(block, colorIdx){ return -(block*12 + colorIdx + 1); }
   function isBaldShape(shape){ return shape>=BALD_MIN && shape<=BALD_MAX; }
   function updateAllRandEnabled(){ const total = PARTS.reduce((a,p)=>a+store.assets[p].size,0); allRand.disabled = (total===0); }
-  function loadImage(url){ return new Promise((res)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>res(null); im.src=url; }); }
+  function loadImage(url){ return new Promise((res)=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=()=>res(null); im.src=url; }); }
   async function ensureBitmap(obj){ if(!obj || !obj.url) return null; if(obj.img) return obj.img; obj.img = await loadImage(obj.url); return obj.img; }
+
+  /* ===== robust part detection ===== */
+  const PART_RE = /(face|skin|hair|clothes|glass)/i;
+  function detectPartFromPath(fullPath){
+    const low=(fullPath||'').toLowerCase().replace(/\\/g,'/');
+    const segs = low.split('/').filter(Boolean);
+    for(const s of segs){ const m = s.match(PART_RE); if (m) return m[1]; }
+    const fname = segs[segs.length-1] || '';
+    const m2 = fname.match(/^(\w+)[-_]/);
+    if(m2 && PARTS.includes(m2[1])) return m2[1];
+    return null;
+  }
+  function detectShapeFromName(name){ const m=(name||'').match(/(-?\d+)/); return m?parseInt(m[1],10):null; }
+  function isPreviewName(name){ return /preview/i.test(name||''); }
 
   /* ===== tabs ===== */
   function activateTab(p){ tablist.querySelectorAll('.tab').forEach(el=>{ el.style.outline=(el.dataset.part===p)?'2px solid #6ee7ff':'none'; }); }
@@ -298,10 +354,10 @@ input[type="file"]{display:none}
       frag.appendChild(d);
     }
     grid.appendChild(frag);
-    updateSelText(); updateAllRandEnabled();
+    updateSelText(); updateAllRandEnabled(); refreshExportLock();
   }
 
-  /* ===== draw sheet ===== */
+  /* ===== draw ===== */
   async function drawSheet(){
     ctx.clearRect(0,0,432,256);
     for(const part of ORDER){
@@ -313,7 +369,7 @@ input[type="file"]{display:none}
     }
   }
 
-  /* ===== color/select part ===== */
+  /* ===== color/select ===== */
   function onColorClick(ci){
     const p=store.selPart;
     if(COLORABLE.has(p) && store.pick[p]!=null){
@@ -332,10 +388,10 @@ input[type="file"]{display:none}
   /* ===== export helpers ===== */
   window.fileBase = function fileBase(){
     const t = selText.textContent || '';
-    const face = t.match(/face:\s*([\-\d]+)/i);
-    const skin = t.match(/skin:\s*([\-\d]+)/i);
-    const hair = t.match(/hair:\s*([\-\d]+)/i);
-    const clothes = t.match(/clothes:\s*([\-\d]+)/i);
+    const face = t.match(/face:\\s*([\\-\\d]+)/i);
+    const skin = t.match(/skin:\\s*([\\-\\d]+)/i);
+    const hair = t.match(/hair:\\s*([\\-\\d]+)/i);
+    const clothes = t.match(/clothes:\\s*([\\-\\d]+)/i);
     if (face && skin && hair && clothes) return `${face[1]},${skin[1]},${hair[1]},${clothes[1]}`;
     return 'sheet';
   };
@@ -359,22 +415,26 @@ input[type="file"]{display:none}
   function resetCategory(p){ store.pick[p]=null; buildGrid(); drawSheet(); }
   allRand.addEventListener('click',()=>{ ['face','skin','hair','clothes'].forEach(p=>randomCategory(p,true)); });
 
-  /* ===== file inputs ===== */
-  function inferPartFromPath(path){ const low=(path||'').toLowerCase(); const seg=low.split('/')[0]||''; if(PARTS.includes(seg)) return seg; const base=low.split('/').pop()||''; const m=base.match(/^(hair|clothes|face|skin|glass)[-_]/); return m?m[1]:null; }
-  function inferShapeFromName(name){ const m=(name||'').match(/(-?\\d+)/); return m?parseInt(m[1],10):null; }
-  function isPreviewName(name){ return /preview/i.test(name||''); }
-
+  /* ===== file inputs (robust) ===== */
   async function addFilesFromList(fileList, targetPart){
     const files=Array.from(fileList||[]); if(!files.length) return;
     const groups=new Map();
     for(const f of files){
-      const rel=f.webkitRelativePath||f.name; let part=inferPartFromPath(rel); if(!part && targetPart) part=targetPart; if(!part) continue;
-      if(!groups.has(part)) groups.set(part,[]); groups.get(part).push(f);
+      const rel=f.webkitRelativePath||f.name;
+      let part = detectPartFromPath(rel);
+      if(!part && targetPart) part = targetPart;
+      if(!part){ // if still unknown, try by filename prefix fallback
+        const base=(rel.split('/').pop()||'').toLowerCase();
+        const m = base.match(PART_RE); if(m) part = m[1];
+      }
+      if(!part) continue;
+      if(!groups.has(part)) groups.set(part,[]);
+      groups.get(part).push(f);
     }
     for(const [part,arr] of groups){
       const map=store.assets[part];
       for(const f of arr){
-        const shape=inferShapeFromName(f.name); if(shape==null) continue;
+        const shape=detectShapeFromName(f.name); if(shape==null) continue;
         const url=URL.createObjectURL(f);
         let cell=map.get(shape); if(!cell){ cell={url:null,previewUrl:null,name:f.name}; map.set(shape,cell); }
         if(isPreviewName(f.name)) cell.previewUrl=url; else cell.url=url;
@@ -383,7 +443,7 @@ input[type="file"]{display:none}
     }
     ['face','skin','hair','clothes','glass'].forEach(p=>{ if(store.pick[p]!=null) return; const m=store.assets[p]; const keys=[...m.keys()].sort((a,b)=>a-b); if(m.has(-1)) store.pick[p]=-1; else if(keys.length) store.pick[p]=keys[0]; });
     if(store.pick.hair!=null) store.color=colorIdxFromShape(store.pick.hair); else if(store.pick.clothes!=null) store.color=colorIdxFromShape(store.pick.clothes);
-    selectPart(store.selPart||'face'); await drawSheet(); updateAllRandEnabled();
+    selectPart(store.selPart||'face'); await drawSheet(); updateAllRandEnabled(); refreshExportLock();
   }
   inDir && inDir.addEventListener('change',async (e)=>{ await addFilesFromList(e.target.files); e.target.value=''; });
   inFiles && inFiles.addEventListener('change',async (e)=>{ await addFilesFromList(e.target.files, store.selPart||'face'); e.target.value=''; });
@@ -393,44 +453,35 @@ input[type="file"]{display:none}
     const entries=[]; zip.forEach((path,en)=>{ if(en.dir) return; const low=path.toLowerCase(); if(!/\\.(png|webp|jpe?g)$/.test(low)) return; entries.push(en); });
     entries.sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true}));
     for(const en of entries){
-      const path=en.name.replace(/\\\\/g,'/'); const folder=(path.split('/')[0]||'').toLowerCase(); if(!PARTS.includes(folder)) continue;
-      const base=path.split('/').pop(); const isPrev=/preview/i.test(base); const m=base.match(/(-?\\d+)/); if(!m) continue;
-      const shape=parseInt(m[1],10); const blob=await en.async('blob'); const url=URL.createObjectURL(blob); const map=store.assets[folder];
-      if(!map.has(shape)) map.set(shape,{url:null,previewUrl:null,name:base}); const cell=map.get(shape);
-      if(isPrev) cell.previewUrl=url; else cell.url=url; if(!cell.previewUrl) cell.previewUrl=cell.url; if(!cell.name) cell.name=base;
+      const path=en.name.replace(/\\\\/g,'/');
+      let part = detectPartFromPath(path);
+      if(!part) continue; // require a part somewhere in path or filename
+      const base = path.split('/').pop()||'';
+      const isPrev = /preview/i.test(base);
+      const m = base.match(/(-?\\d+)/); if(!m) continue;
+      const shape = parseInt(m[1],10);
+      const blob = await en.async('blob');
+      const url = URL.createObjectURL(blob);
+      const map = store.assets[part];
+      if(!map.has(shape)) map.set(shape,{url:null,previewUrl:null,name:base});
+      const cell = map.get(shape);
+      if(isPrev) cell.previewUrl=url; else cell.url=url;
+      if(!cell.previewUrl) cell.previewUrl=cell.url;
+      if(!cell.name) cell.name=base;
     }
     e.target.value='';
     ['face','skin','hair','clothes','glass'].forEach(p=>{ const map=store.assets[p]; if(!map||map.size===0) return; if(store.pick[p]==null){ const keys=[...map.keys()].sort((a,b)=>a-b); store.pick[p]=map.has(-1)?-1:(keys[0]??null);} });
     if(store.pick.hair!=null) store.color=colorIdxFromShape(store.pick.hair); else if(store.pick.clothes!=null) store.color=colorIdxFromShape(store.pick.clothes);
-    selectPart('face'); await drawSheet(); updateAllRandEnabled();
+    selectPart('face'); await drawSheet(); updateAllRandEnabled(); refreshExportLock();
   });
 
-  /* ===== preview zoom/pan ===== */
-  bgColor.addEventListener('input', e=>{ canvasWrap.style.backgroundImage='none'; canvasWrap.style.backgroundColor=e.target.value; });
-  toggleLeft.addEventListener('click', ()=>{ const collapsed=bodyGrid.classList.toggle('collapsed'); leftPanel.classList.toggle('collapsed',collapsed); toggleLeft.textContent=collapsed?'▶':'◀'; });
-  let scale=1; function applyZoom(){ cvs.style.width=(432*scale)+'px'; cvs.style.height=(256*scale)+'px'; }
-  function fit(){ const wrap=canvasWrap; const s=Math.min((wrap.clientWidth-16)/432,(wrap.clientHeight-16)/256); scale=Math.max(0.25,Math.min(s,8)); applyZoom(); }
-  function zoomIn(){ scale=Math.min(8,scale*1.25); applyZoom(); }
-  function zoomOut(){ scale=Math.max(0.25,scale/1.25); applyZoom(); }
-  zoomInBtn.addEventListener('click', zoomIn); zoomFitBtn.addEventListener('click', fit);
-  window.addEventListener('resize', fit); fit();
-  let panning=false, sx=0, sy=0, sl=0, st=0, suppressNextClick=false;
-  canvasWrap.addEventListener('mousedown',(e)=>{ if(e.button!==0) return; panning=true; sx=e.clientX; sy=e.clientY; sl=canvasWrap.scrollLeft; st=canvasWrap.scrollTop; canvasWrap.style.cursor='grabbing'; e.preventDefault(); });
-  window.addEventListener('mouseup', ()=>{ if(panning){ panning=false; canvasWrap.style.cursor='default'; } suppressNextClick=true; setTimeout(()=>suppressNextClick=false,0); });
-  window.addEventListener('mousemove', (e)=>{ if(!panning) return; canvasWrap.scrollLeft = sl - (e.clientX - sx); canvasWrap.scrollTop = st - (e.clientY - sy); });
-  canvasWrap.addEventListener('wheel', (e)=>{ e.preventDefault(); if(e.deltaY<0) zoomIn(); else zoomOut(); }, {passive:false});
-
-  // perf pulse
-  let rafId=null, last=performance.now(); function tick(t){ const dt=Math.round(t-last); perf.textContent = dt>50?`Busy ${dt}ms`:`Idle`; last=t; rafId=requestAnimationFrame(tick); } rafId=requestAnimationFrame(tick);
-
-  /* ===== overlay (multi-select) ===== */
+  /* ===== preview overlay (selection) ===== */
   (function initOverlay(){
     const wrap=document.getElementById('canvasWrap');
     let overlay=document.getElementById('sheetOverlay');
     if(!overlay){ overlay=document.createElement('canvas'); overlay.id='sheetOverlay'; overlay.width=432; overlay.height=256; overlay.style.position='absolute'; overlay.style.inset='0'; overlay.style.pointerEvents='none'; overlay.style.imageRendering='pixelated'; wrap.style.position='relative'; cvs.style.position='relative'; wrap.appendChild(overlay); }
     const octx=overlay.getContext('2d',{alpha:true});
     const state = { anchor:null, selected:new Set(), hover:-1, dragging:false, dragStart:null, dragEnd:null, dirty:true };
-    // expose globally so exporters can read it
     window.__FRAME_SELECT__ = state;
 
     function compressRanges(arr){
@@ -459,12 +510,9 @@ input[type="file"]{display:none}
       }
       state.selected.forEach(i=>{ const c=i%9, r=Math.floor(i/9); octx.save(); octx.strokeStyle='#4ea1ff'; octx.lineWidth=2; octx.strokeRect(c*48+1,r*64+1,46,62); octx.restore(); });
       frameLabel.textContent = state.selected.size? compressRanges([...state.selected]) : (state.hover>=0? state.hover:'-');
-      // keep global selection in sync for exporters
-      selectionState.selected = new Set(state.selected);
-      selectionState.hover = state.hover;
+      selectionState.selected = new Set(state.selected); selectionState.hover=state.hover;
     }
-    function loop(){ drawOverlay(); requestAnimationFrame(loop); }
-    requestAnimationFrame(loop);
+    function loop(){ drawOverlay(); requestAnimationFrame(loop); } requestAnimationFrame(loop);
 
     cvs.addEventListener('mousemove',(e)=>{ const idx=frameAtEvent(e); state.hover=idx; if(state.dragging){ state.dragEnd=(idx<0?state.dragEnd:idx);} state.dirty=true; });
     cvs.addEventListener('mouseleave',()=>{ state.hover=-1; state.dirty=true; });
@@ -481,7 +529,6 @@ input[type="file"]{display:none}
     }, {capture:true});
 
     cvs.addEventListener('click',(e)=>{
-      if(state.dragging) return;
       const rect=cvs.getBoundingClientRect();
       if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom) return;
       const sx=(e.clientX-rect.left)*(cvs.width/rect.width), sy=(e.clientY-rect.top)*(cvs.height/rect.height);
@@ -494,14 +541,12 @@ input[type="file"]{display:none}
       state.dirty=true;
     });
 
-    // Ctrl+A select all visible frames (0..35)
     document.addEventListener('keydown',(e)=>{
       const tag=(e.target && e.target.tagName)? e.target.tagName.toUpperCase():'';
       if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(e.target&&e.target.isContentEditable)) return;
       if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){ e.preventDefault(); state.selected=new Set(Array.from({length:36},(_,i)=>i)); state.dirty=true; }
     });
 
-    // Right click copy selected frames
     cvs.addEventListener('contextmenu', async (e)=>{
       if (state.selected.size===0) return;
       e.preventDefault();
@@ -514,8 +559,11 @@ input[type="file"]{display:none}
     });
   })();
 
-  /* ===== export buttons ===== */
+  /* ===== exports ===== */
+  function requireExportOk(){ if(saveWebpBtn.disabled){ alert('외부(CDN) 이미지가 섞여 내보내기가 차단됨.\nZIP/폴더로 불러오거나 동일 오리진으로 프록시하세요.'); return false;} return true; }
+
   saveSelectedBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
     const selected = [...(selectionState.selected || new Set())].sort((a,b)=>a-b);
     if (selected.length===0){ alert('선택된 프레임이 없습니다.'); return; }
     const s = __getExportScale();
@@ -527,6 +575,7 @@ input[type="file"]{display:none}
   });
 
   exportFramesBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
     const selected = [...(selectionState.selected || new Set())].sort((a,b)=>a-b);
     if (selected.length===0){ alert('선택된 프레임이 없습니다.'); return; }
     const s = __getExportScale(); const base=fileBase();
@@ -541,13 +590,14 @@ input[type="file"]{display:none}
   });
 
   saveAllZipBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
     if (!window.JSZip){ alert('JSZip not loaded'); return; }
     const zip=new JSZip(); const currentNumbers=fileBase(); const [faceNum,skinNum,hairNum,clothesNum]=currentNumbers.split(',');
     const s=__getExportScale(); const zipFileName=`frame_all_${faceNum}${skinNum}${hairNum}${clothesNum}_0~35_${s}x.zip`;
     for(let i=0;i<36;i++){
       const sx=(i%9)*48, sy=Math.floor(i/9)*64;
       const oc=document.createElement('canvas'); oc.width=48*s; oc.height=64*s;
-      oc.getContext('2d').drawImage(cvs, sx, sy, 48,64, 0,0, 48*s,64*s);
+      oc.getContext('2d').drawImage(cvs, sx, sy,48,64,0,0,48*s,64*s);
       const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
       const b64=await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
       zip.file(`frame_${faceNum}${skinNum}${hairNum}${clothesNum}_${i}.webp`, b64, {base64:true});
@@ -557,6 +607,7 @@ input[type="file"]{display:none}
   });
 
   saveWebpBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
     const s=__getExportScale();
     const oc=document.createElement('canvas'); oc.width=cvs.width*s; oc.height=cvs.height*s;
     const g=oc.getContext('2d'); g.imageSmoothingEnabled=false;
@@ -565,12 +616,66 @@ input[type="file"]{display:none}
     const a=document.createElement('a'); a.download=`${fileBase()}_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1200);
   });
 
+  /* ===== CDN quick scan ===== */
+  async function urlExists(url){
+    return new Promise((resolve)=>{
+      const img = new Image();
+      img.onload = ()=>resolve(true);
+      img.onerror = ()=>resolve(false);
+      img.src = url + (url.includes('?')?'&':'?') + 't=' + Date.now();
+    });
+  }
+  async function scanCdnPart(part){
+    // heuristic ranges — tweak if needed
+    const ranges = {
+      face:   {start:-1, end:-300, step:-1},
+      skin:   {start:-1, end:-120, step:-1},
+      hair:   {start:-1, end:-1200, step:-1},
+      clothes:{start:-1, end:-1200, step:-1},
+      glass:  {start:-1, end:-400, step:-1}
+    };
+    const R = ranges[part];
+    let added=0, miss=0, stopAt=40;
+    for(let n=R.start; (R.step<0? n>=R.end : n<=R.end); n+=R.step){
+      const u = `${ZEP_BASE}/${part}/${n}.png`;
+      const p = `${ZEP_BASE}/${part}/${n}_preview.png`;
+      const ok = await urlExists(u);
+      if(!ok){ miss++; if(miss>=stopAt) break; continue; } else { miss=0; }
+      const cell = store.assets[part].get(n) || {url:null,previewUrl:null,name:`${part}_${n}.png`};
+      cell.url = u; cell.previewUrl = (await urlExists(p))?p:u;
+      store.assets[part].set(n, cell); added++;
+      if(added%10===0) { perf.textContent=`scan ${part}: +${added}`; }
+    }
+    perf.textContent = `scan ${part}: +${added}`;
+    if(store.pick[part]==null){ const keys=[...store.assets[part].keys()].sort((a,b)=>a-b); store.pick[part]=keys[0]??null; }
+    refreshExportLock(); // likely locks exports due to external
+    selectPart(part); await drawSheet();
+  }
+  cdnScanBtn.addEventListener('click', ()=>{ scanCdnPart('face'); });
+  scanGoBtn.addEventListener('click', ()=>{ scanCdnPart(scanPartSel.value); });
+
+  /* ===== layout / zoom / splitter ===== */
+  bgColor.addEventListener('input', e=>{ canvasWrap.style.backgroundImage='none'; canvasWrap.style.backgroundColor=e.target.value; });
+  toggleLeft.addEventListener('click', ()=>{ const collapsed=bodyGrid.classList.toggle('collapsed'); leftPanel.classList.toggle('collapsed',collapsed); toggleLeft.textContent=collapsed?'▶':'◀'; });
+  let scale=1; function applyZoom(){ cvs.style.width=(432*scale)+'px'; cvs.style.height=(256*scale)+'px'; }
+  function fit(){ const wrap=canvasWrap; const s=Math.min((wrap.clientWidth-16)/432,(wrap.clientHeight-16)/256); scale=Math.max(0.25,Math.min(s,8)); applyZoom(); }
+  function zoomIn(){ scale=Math.min(8,scale*1.25); applyZoom(); }
+  function zoomOut(){ scale=Math.max(0.25,scale/1.25); applyZoom(); }
+  zoomInBtn.addEventListener('click', zoomIn); zoomFitBtn.addEventListener('click', fit);
+  window.addEventListener('resize', fit); fit();
+  const split=document.getElementById('split'); let dragging=false, sx=0, startW=0;
+  split.addEventListener('mousedown',(e)=>{ dragging=true; sx=e.clientX; startW=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rightW'))||560; document.body.style.userSelect='none'; });
+  window.addEventListener('mousemove',(e)=>{ if(!dragging) return; const dx=sx-e.clientX; let w=startW+dx; w=Math.max(340,Math.min(980,w)); document.documentElement.style.setProperty('--rightW', w+'px'); });
+  window.addEventListener('mouseup',()=>{ dragging=false; document.body.style.userSelect=''; });
+
+  // perf ticker
+  let rafId=null, last=performance.now(); function tick(t){ const dt=Math.round(t-last); perf.textContent = dt>50?`Busy ${dt}ms`:`Idle`; last=t; rafId=requestAnimationFrame(tick); } rafId=requestAnimationFrame(tick);
+
   /* ===== init ===== */
   document.addEventListener('DOMContentLoaded', async ()=>{
     highlightColor(); selectPart('face'); await drawSheet();
     const sel=document.getElementById('exportScale'); if(sel){ const saved=+localStorage.getItem('exportScale')||1; if([1,2,3,4,6,8,16].includes(saved)) sel.value=String(saved); sel.addEventListener('change',()=>localStorage.setItem('exportScale',sel.value)); }
   });
-
 })();
 </script>
 </body>
