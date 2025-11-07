@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Avatar Customizer — Proxy-enabled Exports</title>
+<title>Avatar Customizer — Minimal (All-Scan + Delete + Proxy preset)</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif;color:#e8ecf1;background:#0b0d12}
 #app{height:100%;display:grid;grid-template-rows:56px 1fr 30px}
-:root{--rightW:580px; --leftW:230px; --leftWCollapsed:48px}
+:root{--rightW:620px; --leftW:230px; --leftWCollapsed:48px}
 .topbar{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 10px;background:#0d1220;border-bottom:1px solid #1d2538}
 .title{display:flex;gap:10px;align-items:center}
 .title h1{margin:0;font-size:1rem;line-height:1}
 .title .meta{font-size:.8rem;color:#95a0b3}
 .actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:6px 10px;font-size:.85rem;cursor:pointer}
+.btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:6px 10px;font-size:.85rem;cursor:pointer;white-space:nowrap}
 .btn:disabled{opacity:.5;cursor:default}
 input[type="file"]{display:none}
 select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:6px 10px}
@@ -64,7 +64,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   <div class="topbar">
     <div class="title">
       <h1>Avatar Customizer</h1>
-      <div class="meta">Proxy-enabled exports · 432×256 · 36 frames</div>
+      <div class="meta">All-Scan · Delete · Proxy preset · 432×256</div>
     </div>
     <div class="actions">
       <span class="small" id="perf">Idle</span>
@@ -72,9 +72,8 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
       <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip">
       <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*">
       <input id="inFiles" type="file" accept="image/*" multiple style="display:none">
-      <button class="btn" id="cdnScan" type="button">CDN Auto-Scan</button>
-      <!-- Proxy controls -->
-      <input id="proxyBase" type="text" placeholder="https://your-proxy.example.com" style="min-width:280px">
+      <button class="btn" id="cdnScan" type="button">CDN All-Scan</button>
+      <input id="proxyBase" type="text" value="https://corsproxy.io/?url=" style="min-width:300px" title="프록시 주소 (예: https://corsproxy.io/?url=)">
       <button class="btn" id="proxyToggle" type="button" title="외부 이미지를 프록시로 라우팅">Use Proxy: OFF</button>
       <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
     </div>
@@ -174,24 +173,52 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     selectedShapes:new Set(), _visibleShapes:[], _anchorShape:null
   };
 
-  const state={selected:new Set(),hover:-1, useProxy:false, proxyBase:''};
+  const state={selected:new Set(),hover:-1, useProxy:false, proxyBase: (proxyBaseInput.value||'').trim()};
 
-  function isExternal(u){ try{ if(!u) return false; if(u.startsWith('blob:')||u.startsWith('data:')) return false; const a=new URL(u,location.href); return a.origin!==location.origin; }catch{return false;}}
-  function proxify(u){ if(!state.useProxy) return u; if(!state.proxyBase) return u; return state.proxyBase.replace(/\/$/,'') + '?u=' + encodeURIComponent(u); }
+  function isExternal(u){
+    try{
+      if(!u) return false;
+      if(u.startsWith('blob:')||u.startsWith('data:')) return false;
+      const a=new URL(u,location.href);
+      return a.origin!==location.origin;
+    }catch{return false;}
+  }
+  function proxify(u){
+    if(!state.useProxy) return u;
+    const base=(state.proxyBase||'').trim();
+    if(!base) return u;
+    // Support patterns: "...?url=" (corsproxy.io), "...?u=", "...{url}..."
+    if(base.includes('{url}')) return base.replace('{url}', encodeURIComponent(u));
+    if(/[\?&]url=$/i.test(base) || /=$/.test(base)) return base + encodeURIComponent(u);
+    return base + (base.includes('?') ? '&url=' : '?url=') + encodeURIComponent(u);
+  }
 
   function refreshExportLock(){
-    let locked=false;
-    for(const p of PARTS){ for(const v of store.assets[p].values()){ if(v&&v.url&&isExternal(v.url)){ locked=true; break; } } if(locked) break; }
-    corsState.textContent = locked ? 'export: CORS-locked' : 'export: ok';
-    corsState.title = locked ? '외부 이미지 존재 — 프록시 사용 또는 ZIP/폴더 업로드 권장' : '내보내기 가능';
-    const dis=locked;
-    saveWebpBtn.disabled=dis; saveSelectedBtn.disabled=dis; saveAllZipBtn.disabled=dis; exportFramesBtn.disabled=dis;
+    let external=false;
+    for(const p of PARTS){
+      for(const v of store.assets[p].values()){
+        if(v && v.url && isExternal(v.url)){ external=true; break; }
+      }
+      if(external) break;
+    }
+    const locked = external && !state.useProxy;
+    corsState.textContent = locked ? 'export: CORS-locked' : (state.useProxy ? 'export: ok (proxy)' : 'export: ok');
+    corsState.title = locked ? '외부 이미지 존재 — 프록시를 켜면 내보내기 가능' : '내보내기 가능';
+    saveWebpBtn.disabled=locked; saveSelectedBtn.disabled=locked; saveAllZipBtn.disabled=locked; exportFramesBtn.disabled=locked;
   }
 
   function colorIdxFromShape(shape){ return ((-shape - 1) % 12 + 12) % 12; }
   function blockFromShape(shape){ return Math.floor(((-shape - 1) / 12)); }
   function shapeFromBlockColor(block,colorIdx){ return -(block*12 + colorIdx + 1); }
-  function loadImage(url){ return new Promise(res=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=()=>res(null); im.src=url; }); }
+  function loadImage(url){
+    return new Promise(res=>{
+      const im=new Image();
+      im.crossOrigin='anonymous';
+      im.onload=()=>res(im);
+      im.onerror=()=>res(null);
+      im.src=url;
+    });
+  }
   async function ensureBitmap(obj){ if(!obj||!obj.url) return null; if(obj.img) return obj.img; obj.img=await loadImage(obj.url); return obj.img; }
   function updateAllRandEnabled(){ const total=PARTS.reduce((a,p)=>a+store.assets[p].size,0); allRand.disabled=(total===0); }
   function updateSelText(){ const t=`face: ${store.pick.face ?? '-'}, skin: ${store.pick.skin ?? '-'}, hair: ${store.pick.hair ?? '-'}, clothes: ${store.pick.clothes ?? '-'}`; selText.textContent=t; }
@@ -277,14 +304,14 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   }
   function selectPart(p){ store.selPart=p; activateTab(p); colorBar.style.display=COLORABLE.has(p)?'flex':'none'; highlightColor(); buildGrid(); }
 
-  // Exports
+  // Export helpers
   function fileBase(){ const t=selText.textContent||''; const face=t.match(/face:\s*([\-\d]+)/i); const skin=t.match(/skin:\s*([\-\d]+)/i); const hair=t.match(/hair:\s*([\-\d]+)/i); const clothes=t.match(/clothes:\s*([\-\d]+)/i); if(face&&skin&&hair&&clothes) return `${face[1]},${skin[1]},${hair[1]},${clothes[1]}`; return 'sheet'; }
   function getScale(){ const el=document.getElementById('exportScale'); let s=el?parseFloat(el.value||'1'):1; if(!Number.isFinite(s)||s<=0) s=1; return Math.min(16,Math.max(1,s)); }
   async function encodeWebPFromCanvas(canvas,opt={lossless:true,quality:1.0}){ return await new Promise(res=>canvas.toBlob(res,'image/webp',opt.quality)); }
-  function requireExportOk(){ if(saveWebpBtn.disabled){ alert('외부 이미지 존재. 프록시를 설정하고 Use Proxy를 켜거나, ZIP/폴더로 불러오세요.'); return false;} return true; }
+  function requireExportOk(){ if(saveWebpBtn.disabled){ alert('외부 이미지 존재. 프록시를 켠 뒤 다시 시도하거나 ZIP/폴더로 불러오세요.'); return false;} return true; }
 
   // Overlay (frame selection)
-  (function initOverlay(){
+  ;(function initOverlay(){
     const wrap=document.getElementById('canvasWrap'); let overlay=document.getElementById('sheetOverlay');
     if(!overlay){ overlay=document.createElement('canvas'); overlay.id='sheetOverlay'; overlay.width=432; overlay.height=256; overlay.style.position='absolute'; overlay.style.inset='0'; overlay.style.pointerEvents='none'; overlay.style.imageRendering='pixelated'; wrap.style.position='relative'; cvs.style.position='relative'; wrap.appendChild(overlay); }
     const octx=overlay.getContext('2d',{alpha:true});
@@ -382,9 +409,15 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     selectPart('face'); await drawSheet(); updateAllRandEnabled(); refreshExportLock();
   });
 
-  // CDN Auto-Scan with optional proxy
+  // CDN All-Scan with optional proxy (face→skin→hair→clothes→glass)
   async function urlExists(url){
-    return new Promise((resolve)=>{ const img=new Image(); img.onload=()=>resolve(true); img.onerror=()=>resolve(false); img.crossOrigin='anonymous'; img.src=url + (url.includes('?')?'&':'?') + 't=' + Date.now(); });
+    return new Promise((resolve)=>{
+      const img=new Image();
+      img.onload=()=>resolve(true);
+      img.onerror=()=>resolve(false);
+      img.crossOrigin='anonymous';
+      img.src=url + (url.includes('?')?'&':'?') + 't=' + Date.now();
+    });
   }
   async function scanPart(part){
     const ranges={ face:{start:-1,end:-300,step:-1}, skin:{start:-1,end:-120,step:-1}, hair:{start:-1,end:-1200,step:-1}, clothes:{start:-1,end:-1200,step:-1}, glass:{start:-1,end:-400,step:-1} };
@@ -401,14 +434,18 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     if(store.pick[part]==null){ const keys=[...store.assets[part].keys()].sort((a,b)=>a-b); store.pick[part]=keys[0]??null; }
     refreshExportLock(); selectPart(part); await drawSheet();
   }
-  cdnScanBtn.onclick=()=>scanPart('face');
+  async function scanAllParts(){
+    const seq=['face','skin','hair','clothes','glass'];
+    for(const p of seq){ await scanPart(p); }
+    selectPart('face');
+  }
+  cdnScanBtn.onclick=scanAllParts;
 
   // Proxy controls
   proxyToggle.onclick=()=>{
-    const base = (proxyBaseInput.value||'').trim();
+    state.proxyBase = (proxyBaseInput.value||'').trim();
     if(!state.useProxy){
-      if(!base){ alert('프록시 URL을 입력하세요. 예: https://your-worker.example.com'); return; }
-      state.proxyBase = base;
+      if(!state.proxyBase){ alert('프록시 URL을 입력하세요. 예: https://corsproxy.io/?url='); return; }
       state.useProxy = true;
       proxyToggle.textContent = 'Use Proxy: ON';
       // rewrite external URLs already loaded
@@ -422,12 +459,97 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     }else{
       state.useProxy = false;
       proxyToggle.textContent = 'Use Proxy: OFF';
-      // cannot reverse URLs safely; advise re-scan/reload if needed
       refreshExportLock();
     }
   };
 
-  // UI layout tweaks
+  // Exports
+  saveWebpBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    const s=getScale(); const src=cvs;
+    const oc=document.createElement('canvas'); oc.width=Math.round(src.width*s); oc.height=Math.round(src.height*s);
+    const octx=oc.getContext('2d',{alpha:true}); octx.imageSmoothingEnabled=false; octx.clearRect(0,0,oc.width,oc.height);
+    octx.drawImage(src,0,0,src.width,src.height,0,0,oc.width,oc.height);
+    const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+    const a=document.createElement('a'); a.download=(fileBase())+`_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+  saveSelectedBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    const list=[...state.selected].sort((a,b)=>a-b); if(list.length===0) return;
+    const s=getScale(); const oc=document.createElement('canvas'); oc.width=48*s*list.length; oc.height=64*s;
+    const g=oc.getContext('2d'); g.imageSmoothingEnabled=false;
+    list.forEach((i,k)=>{ const sx=(i%9)*48, sy=Math.floor(i/9)*64; g.drawImage(cvs,sx,sy,48,64,48*s*k,0,48*s,64*s); });
+    const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+    const a=document.createElement('a'); a.download=`${fileBase()}-frame-${list.join('_')}_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+  saveAllZipBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    if(!window.JSZip){ alert('JSZip not loaded'); return; }
+    const zip=new JSZip(); const base=fileBase(); const s=getScale();
+    for(let i=0;i<36;i++){
+      const sx=(i%9)*48, sy=Math.floor(i/9)*64;
+      const oc=document.createElement('canvas'); oc.width=48*s; oc.height=64*s;
+      oc.getContext('2d').drawImage(cvs,sx,sy,48,64,0,0,48*s,64*s);
+      const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+      const b64=await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+      zip.file(`frame_${base}_${i}_${s}x.webp`, b64, {base64:true});
+    }
+    const cont=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.download=`frame_all_${base}_0~35_${s}x.zip`; a.href=URL.createObjectURL(cont); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+  exportFramesBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    const list=[...state.selected].sort((a,b)=>a-b); if(list.length===0) return;
+    const base=fileBase(); const s=getScale();
+    for(let i=0;i<list.length;i++){
+      const frameIdx=list[i];
+      const oc=document.createElement('canvas'); oc.width=48*s; oc.height=64*s;
+      const octx2=oc.getContext('2d'); octx2.imageSmoothingEnabled=false;
+      const sx=(frameIdx%9)*48, sy=Math.floor(frameIdx/9)*64;
+      octx2.drawImage(cvs,sx,sy,48,64,0,0,48*s,64*s);
+      const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+      const a=document.createElement('a'); a.download=`${base}-frame-${frameIdx}_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+      if(i<list.length-1) await new Promise(r=>setTimeout(r,80));
+    }
+  });
+
+  // Resource deletion (grid, Delete key)
+  function deleteSelectedResources(){
+    const part=store.selPart;
+    if(!store.selectedShapes.size) return;
+    if(!confirm(`${store.selectedShapes.size}개의 리소스를 삭제할까요?`)) return;
+    const map=store.assets[part];
+    for(const shape of store.selectedShapes){
+      const cell=map.get(shape);
+      if(cell){
+        try{
+          if(cell.url && cell.url.startsWith('blob:')) URL.revokeObjectURL(cell.url);
+          if(cell.previewUrl && cell.previewUrl.startsWith('blob:')) URL.revokeObjectURL(cell.previewUrl);
+        }catch(_){}
+        map.delete(shape);
+      }
+    }
+    if(store.pick[part]!=null && !map.has(store.pick[part])){
+      const keys=[...map.keys()].sort((a,b)=>a-b);
+      store.pick[part]=keys.length?keys[0]:null;
+    }
+    store.selectedShapes.clear();
+    buildGrid(); drawSheet(); updateAllRandEnabled();
+  }
+  document.addEventListener('keydown',(e)=>{
+    if(e.key==='Delete'){ deleteSelectedResources(); }
+    if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){
+      if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+      // select all in current grid
+      const vis=store._visibleShapes||[]; store.selectedShapes=new Set(vis);
+      document.querySelectorAll('.cell').forEach(c=>{
+        if(c.classList.contains('add')) return;
+        c.classList.add('selected');
+      });
+      e.preventDefault();
+    }
+  });
+
+  // UI layout
   document.getElementById('bgColor').addEventListener('input',e=>{ const wrap=document.getElementById('canvasWrap'); wrap.style.backgroundImage='none'; wrap.style.backgroundColor=e.target.value; });
   toggleLeft.addEventListener('click',()=>{ const collapsed=bodyGrid.classList.toggle('collapsed'); leftPanel.classList.toggle('collapsed',collapsed); toggleLeft.textContent=collapsed?'▶':'◀'; });
   let scale=1; function applyZoom(){ cvs.style.width=(432*scale)+'px'; cvs.style.height=(256*scale)+'px'; }
@@ -441,7 +563,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   let last=performance.now(); function tick(t){ const dt=Math.round(t-last); perf.textContent=dt>50?`Busy ${dt}ms`:`Idle`; last=t; requestAnimationFrame(tick);} requestAnimationFrame(tick);
 
   // init
-  document.addEventListener('DOMContentLoaded', async ()=>{ highlightColor(); selectPart('face'); await drawSheet(); });
+  document.addEventListener('DOMContentLoaded', async ()=>{ highlightColor(); selectPart('face'); await drawSheet(); refreshExportLock(); });
 })();
 </script>
 </body>
