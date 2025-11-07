@@ -1264,41 +1264,39 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
 
+
 <script>
 async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
   const listURL = `https://data.jsdelivr.com/v1/package/gh/${user}/${repo}@${ref}/flat`;
+  console.log('[auto-loader] listURL =', listURL);
   const res = await fetch(listURL, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to list files from jsDelivr Data API');
+  if (!res.ok) throw new Error('List API failed: ' + res.status + ' ' + res.statusText);
   const { files } = await res.json();
+  console.log('[auto-loader] files count =', files.length);
 
   const parts = ['face', 'skin', 'hair', 'clothes', 'glass'];
   const baseUrl = `https://cdn.jsdelivr.net/gh/${user}/${repo}@${ref}/`;
+  console.log('[auto-loader] baseUrl =', baseUrl);
 
-  // store 보정
   if (!window.store) window.store = {};
-  store.assets ??= {};
-  store.pick ??= {};
+  store.assets ??= {}; store.pick ??= {};
   parts.forEach(p => (store.assets[p] ??= new Map()));
 
-  // 파일 분류
+  let added = 0;
   for (const f of files) {
-    let path = f.name;                          // 예: "/assets/clothes/-1.webp"
-    if (!path.toLowerCase().endsWith('.webp')) continue;
-
-    // 1) 선두 슬래시 제거
-    path = path.replace(/^\/+/, '');            // -> "assets/clothes/-1.webp"
-
-    // 2) 파트 판별: 어디에 있든 "/{part}/" 포함이면 인정
+    let path = f.name;                   // ex: "/assets/clothes/-1.webp"
+    if (!/\.webp$/i.test(path)) continue;
+    path = path.replace(/^\/+/, '');     // strip leading "/"
     const lower = path.toLowerCase();
     const part = parts.find(p => lower.includes(`/${p}/`));
     if (!part) continue;
 
     const file = path.split('/').pop();
-    const m = file && file.match(/-?\d+/);      // 음수/정수 shape
+    const m = file && file.match(/-?\d+/);
     if (!m) continue;
     const shape = parseInt(m[0], 10);
 
-    const url = baseUrl + path;                 // baseUrl 끝에 / 있음 → OK
+    const url = baseUrl + path;
     const isPreview = /preview/i.test(file);
 
     const map = store.assets[part];
@@ -1306,31 +1304,31 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
     if (!cell) { cell = { url: null, previewUrl: null, name: file }; map.set(shape, cell); }
     if (isPreview) cell.previewUrl = url; else cell.url = url;
     if (!cell.previewUrl) cell.previewUrl = cell.url;
+    added++;
   }
+  console.log('[auto-loader] grouped assets ->',
+    Object.fromEntries(parts.map(p => [p, store.assets[p].size])));
 
-  // 초기 선택값
   for (const p of parts) {
     if (store.pick[p] != null) continue;
     const keys = [...store.assets[p].keys()].sort((a,b)=>a-b);
     if (keys.length) store.pick[p] = keys[0];
   }
 
-  // 3) 파트 자동 선택: 실제로 항목이 있는 파트 중 첫 번째
-  const firstPart = parts.find(p => (store.assets[p] && store.assets[p].size > 0)) || 'face';
+  const firstPart = parts.find(p => store.assets[p]?.size > 0) || 'face';
   if (typeof selectPart === 'function') selectPart(firstPart);
 
-  // 색 버킷
   if (typeof colorIdxFromShape === 'function') {
     if (store.pick.hair != null) store.color = colorIdxFromShape(store.pick.hair);
     else if (store.pick.clothes != null) store.color = colorIdxFromShape(store.pick.clothes);
   }
 
-  // 렌더
   if (typeof drawSheet === 'function') await drawSheet();
   if (typeof buildGrid === 'function') buildGrid();
+
+  console.log('[auto-loader] done. added entries =', added);
 }
 
-// 즉시 실행
 (async () => {
   try {
     await loadFromGitHubAuto({
@@ -1339,7 +1337,7 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
       ref: 'main'
     });
   } catch (err) {
-    console.error(err);
+    console.error('[auto-loader] ERROR:', err);
     alert('GitHub 리소스 로드 실패: ' + err.message);
   }
 })();
