@@ -6,6 +6,14 @@
   const REF  = 'main'; // 태그 사용 가능
   const PARTS = ['face','skin','hair','clothes','glass'];
 
+  // ===== UI 오토오픈 정책 =====
+  // 'never' : 자동 오픈 금지
+  // 'once'  : 최초 1회만 자동 오픈(로컬스토리지로 기억)
+  // 'always': 항상 자동 오픈
+  const ASSETS_AUTO_OPEN = 'never';
+  const ASSETS_SEEN_KEY  = 'assets_seen_v1';
+
+  
   // 목록: GitHub Trees API / 이미지: raw.githubusercontent.com
   const LIST = `https://api.github.com/repos/${USER}/${REPO}/git/trees/${REF}?recursive=1`;
   const BASE = `https://raw.githubusercontent.com/${USER}/${REPO}/${REF}/`;
