@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Avatar Customizer — Fast Scan</title>
+<title>Avatar Customizer — Minimal (All-Scan + Delete + Proxy safe)</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box}
@@ -64,18 +64,17 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   <div class="topbar">
     <div class="title">
       <h1>Avatar Customizer</h1>
-      <div class="meta">Fast CDN All-Scan · Delete · Proxy</div>
+      <div class="meta">All-Scan · Delete · Proxy safe · 432×256</div>
     </div>
     <div class="actions">
       <span class="small" id="perf">Idle</span>
-      <span class="small" id="corsState">export: ok</span>
+      <span class="small" id="corsState" title="외부 이미지가 섞이면 저장 제한">export: ok</span>
       <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip">
       <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*">
       <input id="inFiles" type="file" accept="image/*" multiple style="display:none">
       <button class="btn" id="cdnScan" type="button">CDN All-Scan</button>
-      <label class="small"><input id="fastScan" type="checkbox" checked> Fast(색 블록 간격)</label>
       <input id="proxyBase" type="text" value="https://images.weserv.nl/?url=" style="min-width:320px" title="권장 프록시(프리뷰+저장 OK): https://images.weserv.nl/?url=">
-      <button class="btn" id="proxyToggle" type="button">Use Proxy: OFF</button>
+      <button class="btn" id="proxyToggle" type="button" title="외부 이미지를 프록시로 라우팅">Use Proxy: OFF</button>
       <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
     </div>
   </div>
@@ -132,8 +131,452 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
 </div>
 
 <script>
-/* The JS is the same as in the previous cell; trimmed in this upload due to space.
-   (In the live assistant message, you'll get the full working file.) */
+(function(){
+  const ORDER=['skin','clothes','face','hair','glass'];
+  const PARTS=['face','skin','hair','clothes','glass'];
+  const PART_LABEL={face:'얼굴',skin:'피부',hair:'헤어',clothes:'의상',glass:'안경'};
+  const COLORABLE=new Set(['hair','clothes']);
+  const COLOR_HEX=['#111111','#8b8b99','#e58a2b','#f2c94c','#3772ff','#7ed0ff','#8b5e34','#9b59b6','#ff66b3','#eaeaea','#ff3b30','#2ecc71'];
+  const ZEP_BASE='https://cdn-static.zep.us/static/assets/sprites';
+
+  const perf=document.getElementById('perf');
+  const corsState=document.getElementById('corsState');
+  const inZip=document.getElementById('inZip');
+  const inDir=document.getElementById('inDir');
+  const inFiles=document.getElementById('inFiles');
+  const cdnScanBtn=document.getElementById('cdnScan');
+  const proxyBaseInput=document.getElementById('proxyBase');
+  const proxyToggle=document.getElementById('proxyToggle');
+  const allRand=document.getElementById('allRand');
+  const tablist=document.getElementById('tablist');
+  const grid=document.getElementById('grid');
+  const colorBar=document.getElementById('colorBar');
+  const cvs=document.getElementById('sheet');
+  const ctx=cvs.getContext('2d',{alpha:true}); ctx.imageSmoothingEnabled=false;
+  const selText=document.getElementById('selText');
+  const copySel=document.getElementById('copySel');
+  const zoomInBtn=document.getElementById('zoomInOverlay');
+  const zoomFitBtn=document.getElementById('zoomFitOverlay');
+  const frameLabel=document.getElementById('frameLabel');
+  const saveWebpBtn=document.getElementById('saveWebp');
+  const saveSelectedBtn=document.getElementById('saveSelected');
+  const saveAllZipBtn=document.getElementById('saveAllZip');
+  const exportFramesBtn=document.getElementById('exportFrames');
+  const bodyGrid=document.getElementById('bodyGrid');
+  const leftPanel=document.getElementById('leftPanel');
+  const toggleLeft=document.getElementById('toggleLeft');
+
+  const store=window.store={
+    assets:{face:new Map(),skin:new Map(),hair:new Map(),clothes:new Map(),glass:new Map()},
+    selPart:'face', color:0,
+    pick:{face:null,skin:null,hair:null,clothes:null,glass:null},
+    selectedShapes:new Set(), _visibleShapes:[], _anchorShape:null
+  };
+
+  const state={selected:new Set(),hover:-1, useProxy:false, proxyBase: (proxyBaseInput.value||'').trim()};
+
+  function getProxyHost(){
+    try{ const u=new URL(state.proxyBase.replace('{url}','https://example.com'), location.href); return u.host; }catch{ return ''; }
+  }
+  function isAlreadyProxied(u){
+    const host = getProxyHost();
+    return host && u.includes(host);
+  }
+  function isExternal(u){
+    try{
+      if(!u) return false;
+      if(u.startsWith('blob:')||u.startsWith('data:')) return false;
+      if(isAlreadyProxied(u)) return true; // treated as external but safe when proxy ON
+      const a=new URL(u,location.href);
+      return a.origin!==location.origin;
+    }catch{return false;}
+  }
+  function proxify(u){
+    if(!state.useProxy) return u;
+    if(!u) return u;
+    if(isAlreadyProxied(u)) return u; // avoid double-proxy
+    const base=(state.proxyBase||'').trim();
+    if(!base) return u;
+    if(base.includes('{url}')) return base.replace('{url}', encodeURIComponent(u));
+    if(/[\?&]url=$/i.test(base) || /=$/.test(base)) return base + encodeURIComponent(u);
+    return base + (base.includes('?') ? '&url=' : '?url=') + encodeURIComponent(u);
+  }
+
+  function refreshExportLock(){
+    let external=false;
+    for(const p of PARTS){
+      for(const v of store.assets[p].values()){
+        if(v && v.url && isExternal(v.url)){ external=true; break; }
+      }
+      if(external) break;
+    }
+    const locked = external && !state.useProxy;
+    corsState.textContent = locked ? 'export: CORS-locked' : (state.useProxy ? 'export: ok (proxy)' : 'export: ok');
+    corsState.title = locked ? '외부 이미지 존재 — 프록시를 켜면 내보내기 가능' : '내보내기 가능';
+    saveWebpBtn.disabled=locked; saveSelectedBtn.disabled=locked; saveAllZipBtn.disabled=locked; exportFramesBtn.disabled=locked;
+  }
+
+  function colorIdxFromShape(shape){ return ((-shape - 1) % 12 + 12) % 12; }
+  function blockFromShape(shape){ return Math.floor(((-shape - 1) / 12)); }
+  function shapeFromBlockColor(block,colorIdx){ return -(block*12 + colorIdx + 1); }
+  function loadImage(url){
+    return new Promise(res=>{
+      const im=new Image();
+      im.crossOrigin='anonymous';
+      im.onload=()=>res(im);
+      im.onerror=()=>res(null);
+      im.src=url;
+    });
+  }
+  async function ensureBitmap(obj){ if(!obj||!obj.url) return null; if(obj.img) return obj.img; obj.img=await loadImage(obj.url); return obj.img; }
+  function updateAllRandEnabled(){ const total=PARTS.reduce((a,p)=>a+store.assets[p].size,0); allRand.disabled=(total===0); }
+  function updateSelText(){ const t=`face: ${store.pick.face ?? '-'}, skin: ${store.pick.skin ?? '-'}, hair: ${store.pick.hair ?? '-'}, clothes: ${store.pick.clothes ?? '-'}`; selText.textContent=t; }
+
+  // Tabs
+  function activateTab(p){ tablist.querySelectorAll('.tab').forEach(el=>{ el.style.outline=(el.dataset.part===p)?'2px solid #6ee7ff':'none'; }); }
+  PARTS.forEach(p=>{
+    const tab=document.createElement('div'); tab.className='tab'; tab.dataset.part=p;
+    const name=document.createElement('div'); name.className='name'; name.textContent=PART_LABEL[p];
+    const btns=document.createElement('div'); btns.className='rowbtns';
+    const icoRand=document.createElement('div'); icoRand.className='icon'; icoRand.textContent='🎲'; icoRand.title='랜덤+색';
+    const icoLock=document.createElement('div'); icoLock.className='icon'; icoLock.textContent='🔒'; icoLock.title='랜덤(색 고정)';
+    const icoReset=document.createElement('div'); icoReset.className='icon'; icoReset.textContent='↺'; icoReset.title='초기화';
+    icoRand.onclick=(e)=>{ e.stopPropagation(); randomCategory(p,true); };
+    icoLock.onclick=(e)=>{ e.stopPropagation(); randomCategory(p,false); };
+    icoReset.onclick=(e)=>{ e.stopPropagation(); resetCategory(p); };
+    btns.append(icoRand,icoLock,icoReset);
+    tab.append(name,btns);
+    tab.onclick=()=>selectPart(p);
+    tablist.appendChild(tab);
+  });
+
+  // Colors
+  const colorDots=[];
+  const colorBarEl=document.getElementById('colorBar');
+  COLOR_HEX.forEach((hex,i)=>{ const d=document.createElement('div'); d.className='swatch'; d.style.background=hex; d.onclick=()=>onColorClick(i); colorBarEl.appendChild(d); colorDots.push(d); });
+  function highlightColor(){ colorDots.forEach((el,i)=> el.classList.toggle('active', i===store.color)); }
+
+  // Grid
+  function clearGridSelection(){ store.selectedShapes.clear(); document.querySelectorAll('.cell.selected').forEach(c=>c.classList.remove('selected')); store._anchorShape=null; }
+  function buildGrid(){
+    const p=store.selPart, map=store.assets[p]; store._visibleShapes=[]; grid.innerHTML='';
+    const addCell=document.createElement('div'); addCell.className='cell add'; addCell.title='현재 파트로 이미지 추가';
+    const th=document.createElement('div'); th.className='thumb'; const plus=document.createElement('div'); plus.className='plus'; plus.textContent='＋'; th.appendChild(plus);
+    const lb=document.createElement('div'); lb.className='label'; lb.textContent='Add';
+    addCell.append(th,lb); addCell.addEventListener('click',()=>inFiles && inFiles.click()); grid.appendChild(addCell);
+    const filter = COLORABLE.has(p)?store.color:null;
+    const shapes=[...map.keys()].sort((a,b)=>a-b); const frag=document.createDocumentFragment();
+    for(const shape of shapes){
+      if(filter!=null && colorIdxFromShape(shape)!==filter) continue;
+      store._visibleShapes.push(shape);
+      const item = map.get(shape);
+      const d=document.createElement('div'); d.className='cell'; d.dataset.shape=shape;
+      const th=document.createElement('div'); th.className='thumb';
+      const img=new Image(); img.width=84; img.height=84; img.src=item.previewUrl||item.url; img.style.imageRendering='pixelated'; th.appendChild(img);
+      const lb=document.createElement('div'); lb.className='label'; lb.textContent=`#${shape}`; lb.title=item.name||`#${shape}`;
+      d.append(th,lb);
+      if(store.pick[p]===shape) d.classList.add('active');
+      if (store.selectedShapes.size && store.selectedShapes.has(shape)) d.classList.add('selected');
+      d.onclick=async (e)=>{
+        if (e.ctrlKey||e.metaKey){ d.classList.toggle('selected'); if(d.classList.contains('selected')) store.selectedShapes.add(shape); else store.selectedShapes.delete(shape); store._anchorShape=shape; return; }
+        if (e.shiftKey){
+          const vis=store._visibleShapes||[]; const anchor=store._anchorShape!=null?store._anchorShape:shape;
+          const ai=vis.indexOf(anchor), bi=vis.indexOf(shape);
+          if(ai!==-1&&bi!==-1){ const [s,eidx]=ai<=bi?[ai,bi]:[bi,ai]; store.selectedShapes.clear(); document.querySelectorAll('.cell.selected').forEach(c=>c.classList.remove('selected'));
+            for(let k=s;k<=eidx;k++){ const sh=vis[k]; store.selectedShapes.add(sh); } document.querySelectorAll('.cell').forEach(c=>{ if(c.classList.contains('add'))return; const sh=parseInt(c.dataset.shape,10); if(store.selectedShapes.has(sh)) c.classList.add('selected'); }); }
+          return;
+        }
+        clearGridSelection(); store.pick[p]=shape; store._anchorShape=shape; buildGrid(); await drawSheet(); updateSelText();
+      };
+      frag.appendChild(d);
+    }
+    grid.appendChild(frag);
+    updateSelText(); updateAllRandEnabled(); refreshExportLock();
+  }
+
+  async function drawSheet(){
+    const ctx=cvs.getContext('2d',{alpha:true}); ctx.imageSmoothingEnabled=false;
+    ctx.clearRect(0,0,432,256);
+    for(const part of ORDER){
+      const shape=store.pick[part]; const map=store.assets[part];
+      if(shape==null || !map || !map.has(shape)) continue;
+      const obj=map.get(shape); if(!obj||!obj.url) continue;
+      const img=await ensureBitmap(obj); if(img) ctx.drawImage(img,0,0);
+    }
+  }
+
+  function onColorClick(ci){
+    const p=store.selPart;
+    if(COLORABLE.has(p) && store.pick[p]!=null){
+      const block=blockFromShape(store.pick[p]); const target=shapeFromBlockColor(block,ci);
+      if(store.assets[p].has(target)) store.pick[p]=target;
+    }
+    store.color=ci; highlightColor(); buildGrid(); drawSheet();
+  }
+  function selectPart(p){ store.selPart=p; activateTab(p); colorBar.style.display=COLORABLE.has(p)?'flex':'none'; highlightColor(); buildGrid(); }
+
+  // Export helpers
+  function fileBase(){ const t=selText.textContent||''; const face=t.match(/face:\s*([\-\d]+)/i); const skin=t.match(/skin:\s*([\-\d]+)/i); const hair=t.match(/hair:\s*([\-\d]+)/i); const clothes=t.match(/clothes:\s*([\-\d]+)/i); if(face&&skin&&hair&&clothes) return `${face[1]},${skin[1]},${hair[1]},${clothes[1]}`; return 'sheet'; }
+  function getScale(){ const el=document.getElementById('exportScale'); let s=el?parseFloat(el.value||'1'):1; if(!Number.isFinite(s)||s<=0) s=1; return Math.min(16,Math.max(1,s)); }
+  async function encodeWebPFromCanvas(canvas,opt={lossless:true,quality:1.0}){ return await new Promise(res=>canvas.toBlob(res,'image/webp',opt.quality)); }
+  function requireExportOk(){ if(saveWebpBtn.disabled){ alert('외부 이미지 존재. 프록시를 켠 뒤 다시 시도하거나 ZIP/폴더로 불러오세요.'); return false;} return true; }
+
+  // Overlay (frame selection)
+  ;(function initOverlay(){
+    const wrap=document.getElementById('canvasWrap'); let overlay=document.getElementById('sheetOverlay');
+    if(!overlay){ overlay=document.createElement('canvas'); overlay.id='sheetOverlay'; overlay.width=432; overlay.height=256; overlay.style.position='absolute'; overlay.style.inset='0'; overlay.style.pointerEvents='none'; overlay.style.imageRendering='pixelated'; wrap.style.position='relative'; cvs.style.position='relative'; wrap.appendChild(overlay); }
+    const octx=overlay.getContext('2d',{alpha:true});
+    const st={anchor:null,selected:new Set(),hover:-1,dragging:false,dragStart:null,dragEnd:null,dirty:true};
+    window.__FRAME_SELECT__=st;
+
+    function compressRanges(arr){ if(arr.length===0) return '-'; arr.sort((a,b)=>a-b); let ranges=[], s=arr[0], prev=arr[0]; for(let i=1;i<arr.length;i++){ const n=arr[i]; if(n===prev+1){ prev=n; continue;} ranges.push(s===prev?`${s}`:`${s}~${prev}`); s=prev=n;} ranges.push(s===prev?`${s}`:`${s}~${prev}`); return ranges.join(','); }
+    function frameAt(e){ const r=cvs.getBoundingClientRect(), sx=(e.clientX-r.left)*(cvs.width/r.width), sy=(e.clientY-r.top)*(cvs.height/r.height); if(sx<0||sy<0||sx>=cvs.width||sy>=cvs.height) return -1; const c=Math.floor(sx/48), rr=Math.floor(sy/64); const idx=rr*9+c; return (idx>=0&&idx<36)?idx:-1; }
+    function rectOf(i){ const c=i%9, r=Math.floor(i/9); return {x:c*48,y:r*64,w:48,h:64}; }
+    function hit(i,R){ const a=rectOf(i); return !(a.x+a.w<=R.x||a.y+a.h<=R.y||a.x>=R.x+R.w||a.y>=R.y+R.h); }
+    function draw(){
+      if(!st.dirty) return; st.dirty=false;
+      const r=cvs.getBoundingClientRect(); overlay.style.width=Math.round(r.width)+'px'; overlay.style.height=Math.round(r.height)+'px';
+      octx.clearRect(0,0,overlay.width,overlay.height);
+      if(st.hover>=0){ const c=st.hover%9, r=Math.floor(st.hover/9); octx.save(); octx.strokeStyle='#ffffffb3'; octx.lineWidth=2; octx.strokeRect(c*48+1,r*64+1,46,62); octx.restore(); }
+      if(st.dragging && st.dragStart!=null && st.dragEnd!=null){ const A=rectOf(st.dragStart), B=rectOf(st.dragEnd); const R={x:Math.min(A.x,B.x),y:Math.min(A.y,B.y),w:Math.abs(A.x-B.x)+48,h:Math.abs(A.y-B.y)+64}; octx.save(); octx.strokeStyle='#70b2ff'; octx.setLineDash([4,3]); octx.strokeRect(R.x+0.5,R.y+0.5,R.w-1,R.h-1); octx.restore(); }
+      st.selected.forEach(i=>{ const c=i%9, r=Math.floor(i/9); octx.save(); octx.strokeStyle='#4ea1ff'; octx.lineWidth=2; octx.strokeRect(c*48+1,r*64+1,46,62); octx.restore(); });
+      frameLabel.textContent = st.selected.size? compressRanges([...st.selected]) : (st.hover>=0? st.hover:'-');
+      state.selected = new Set(st.selected);
+    }
+    function loop(){ draw(); requestAnimationFrame(loop); } requestAnimationFrame(loop);
+    cvs.addEventListener('mousemove',(e)=>{ const idx=frameAt(e); st.hover=idx; if(st.dragging){ st.dragEnd=(idx<0?st.dragEnd:idx);} st.dirty=true; });
+    cvs.addEventListener('mouseleave',()=>{ st.hover=-1; st.dirty=true; });
+    cvs.addEventListener('mousedown',(e)=>{ if(e.button!==0) return; const idx=frameAt(e); if(idx<0) return; st.dragging=true; st.dragStart=idx; st.dragEnd=idx; st.dirty=true; });
+    window.addEventListener('mouseup',(e)=>{ if(!st.dragging) return; st.dragging=false; const a=st.dragStart, b=st.dragEnd; if(a!=null && b!=null){ const A=rectOf(a), B=rectOf(b); const R={x:Math.min(A.x,B.x),y:Math.min(A.y,B.y),w:Math.abs(A.x-B.x)+48,h:Math.abs(A.y-B.y)+64}; let set=new Set(); for(let i=0;i<36;i++) if(hit(i,R)) set.add(i); if(e.ctrlKey||e.metaKey){ set.forEach(i=>{ if(st.selected.has(i)) st.selected.delete(i); else st.selected.add(i); }); } else { st.selected=set; } st.anchor=b; } st.dragStart=null; st.dragEnd=null; st.dirty=true; },{capture:true});
+    cvs.addEventListener('contextmenu', async (e)=>{
+      if (st.selected.size===0) return;
+      e.preventDefault();
+      const list=[...st.selected].sort((a,b)=>a-b);
+      const oc=document.createElement('canvas'); oc.width=48*list.length; oc.height=64; const g=oc.getContext('2d'); g.imageSmoothingEnabled=false;
+      list.forEach((i,k)=>{ const sx=(i%9)*48, sy=Math.floor(i/9)*64; g.drawImage(cvs,sx,sy,48,64,48*k,0,48,64); });
+      try{ const blob=await new Promise(res=>oc.toBlob(res,'image/png')); await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); perf.textContent='✅ Copied'; }catch{ window.open(oc.toDataURL('image/png'),'_blank'); }
+    });
+    document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){ e.preventDefault(); st.selected=new Set(Array.from({length:36},(_,i)=>i)); st.dirty=true; }});
+  })();
+
+  // Random/Reset
+  function randomCategory(p,withColor){
+    const map=store.assets[p]; const keys=[...map.keys()]; if(!keys.length) return;
+    if(COLORABLE.has(p)){ if(withColor){ store.pick[p]=keys[Math.floor(Math.random()*keys.length)]; } else { const bucket=store.color; const cand=keys.filter(s=> ((-s-1)%12+12)%12 === bucket); store.pick[p]=(cand.length?cand:keys)[Math.floor(Math.random()*(cand.length?cand.length:keys.length))]; } }
+    else store.pick[p]=keys[Math.floor(Math.random()*keys.length)];
+    buildGrid(); drawSheet();
+  }
+  function resetCategory(p){ store.pick[p]=null; buildGrid(); drawSheet(); }
+  allRand.addEventListener('click',()=>{ ['face','skin','hair','clothes'].forEach(p=>randomCategory(p,true)); });
+
+  // File inputs
+  const PART_RE=/(face|skin|hair|clothes|glass)/i;
+  function detectPartFromPath(fullPath){
+    const low=(fullPath||'').toLowerCase().replace(/\\/g,'/'); const segs=low.split('/').filter(Boolean);
+    for(const s of segs){ const m=s.match(PART_RE); if(m) return m[1]; }
+    const fname=segs[segs.length-1]||''; const m2=fname.match(/^(\w+)[-_]/); if(m2 && PARTS.includes(m2[1])) return m2[1]; return null;
+  }
+  function detectShapeFromName(name){ const m=(name||'').match(/(-?\d+)/); return m?parseInt(m[1],10):null; }
+  function isPreviewName(name){ return /preview/i.test(name||''); }
+
+  async function addFilesFromList(fileList,targetPart){
+    const files=Array.from(fileList||[]); if(!files.length) return;
+    const groups=new Map();
+    for(const f of files){
+      const rel=f.webkitRelativePath||f.name;
+      let part=detectPartFromPath(rel); if(!part && targetPart) part=targetPart; if(!part) continue;
+      if(!groups.has(part)) groups.set(part,[]); groups.get(part).push(f);
+    }
+    for(const [part,arr] of groups){
+      const map=store.assets[part];
+      for(const f of arr){
+        const shape=detectShapeFromName(f.name); if(shape==null) continue;
+        const url=URL.createObjectURL(f);
+        let cell=map.get(shape); if(!cell){ cell={url:null,previewUrl:null,name:f.name}; map.set(shape,cell); }
+        if(isPreviewName(f.name)) cell.previewUrl=url; else cell.url=url;
+        if(!cell.previewUrl) cell.previewUrl=cell.url; cell.name=f.name;
+      }
+    }
+    ['face','skin','hair','clothes','glass'].forEach(p=>{ if(store.pick[p]!=null) return; const m=store.assets[p]; const keys=[...m.keys()].sort((a,b)=>a-b); if(m.has(-1)) store.pick[p]=-1; else if(keys.length) store.pick[p]=keys[0]; });
+    selectPart(store.selPart||'face'); await drawSheet(); updateAllRandEnabled(); refreshExportLock();
+  }
+
+  inDir.addEventListener('change',async (e)=>{ await addFilesFromList(e.target.files); e.target.value=''; });
+  inFiles.addEventListener('change',async (e)=>{ await addFilesFromList(e.target.files, store.selPart||'face'); e.target.value=''; });
+  inZip.addEventListener('change',async (e)=>{
+    const file=e.target.files?.[0]; if(!file) return;
+    const buf=await file.arrayBuffer(); const zip=await JSZip.loadAsync(buf);
+    const entries=[]; zip.forEach((path,en)=>{ if(en.dir) return; const low=path.toLowerCase(); if(!/\.(png|webp|jpe?g)$/.test(low)) return; entries.push(en); });
+    entries.sort((a,b)=> a.name.localeCompare(b.name,undefined,{numeric:true}));
+    for(const en of entries){
+      const path=en.name.replace(/\\/g,'/'); let part=detectPartFromPath(path); if(!part) continue;
+      const base=path.split('/').pop()||''; const isPrev=/preview/i.test(base); const m=base.match(/(-?\d+)/); if(!m) continue;
+      const shape=parseInt(m[1],10); const blob=await en.async('blob'); const url=URL.createObjectURL(blob);
+      const map=store.assets[part]; if(!map.has(shape)) map.set(shape,{url:null,previewUrl:null,name:base});
+      const cell=map.get(shape); if(isPrev) cell.previewUrl=url; else cell.url=url; if(!cell.previewUrl) cell.previewUrl=cell.url; if(!cell.name) cell.name=base;
+    }
+    e.target.value='';
+    ['face','skin','hair','clothes','glass'].forEach(p=>{ const map=store.assets[p]; if(!map||map.size===0) return; if(store.pick[p]==null){ const keys=[...map.keys()].sort((a,b)=>a-b); store.pick[p]=map.has(-1)?-1:(keys[0]??null);} });
+    selectPart('face'); await drawSheet(); updateAllRandEnabled(); refreshExportLock();
+  });
+
+  // CDN All-Scan with optional proxy (face→skin→hair→clothes→glass)
+  async function urlExists(url){
+    return new Promise((resolve)=>{
+      const img=new Image();
+      img.onload=()=>resolve(true);
+      img.onerror=()=>resolve(false);
+      img.crossOrigin='anonymous';
+      img.src=url + (url.includes('?')?'&':'?') + 't=' + Date.now();
+    });
+  }
+  async function scanPart(part){
+    const ranges={ face:{start:-1,end:-300,step:-1}, skin:{start:-1,end:-120,step:-1}, hair:{start:-1,end:-1200,step:-1}, clothes:{start:-1,end:-1200,step:-1}, glass:{start:-1,end:-400,step:-1} };
+    const R=ranges[part]; let added=0, miss=0, stopAt=40;
+    for(let n=R.start; n>=R.end; n+=R.step){
+      const raw=`${ZEP_BASE}/${part}/${n}.png`; const rawPrev=`${ZEP_BASE}/${part}/${n}_preview.png`;
+      const src=proxify(raw); 
+      const ok=await urlExists(src); if(!ok){ miss++; if(miss>=stopAt) break; continue; } else { miss=0; }
+      const prev=proxify(rawPrev);
+      const prevOk = await urlExists(prev);
+      const cell=store.assets[part].get(n) || {url:null,previewUrl:null,name:`${part}_${n}.png`};
+      cell.url=src; cell.previewUrl=prevOk?prev:src; store.assets[part].set(n,cell); added++;
+      if(added%10===0) perf.textContent=`scan ${part}: +${added}`;
+    }
+    perf.textContent=`scan ${part}: +${added}`;
+    if(store.pick[part]==null){ const keys=[...store.assets[part].keys()].sort((a,b)=>a-b); store.pick[part]=keys[0]??null; }
+    refreshExportLock(); selectPart(part); await drawSheet();
+  }
+  async function scanAllParts(){
+    const seq=['face','skin','hair','clothes','glass'];
+    for(const p of seq){ await scanPart(p); }
+    selectPart('face');
+  }
+  cdnScanBtn.onclick=scanAllParts;
+
+  // Proxy controls
+  proxyToggle.onclick=()=>{
+    state.proxyBase = (proxyBaseInput.value||'').trim();
+    if(!state.useProxy){
+      if(!state.proxyBase){ alert('프록시 URL을 입력하세요. 예: https://images.weserv.nl/?url='); return; }
+      state.useProxy = true;
+      proxyToggle.textContent = 'Use Proxy: ON';
+      // rewrite external URLs already loaded
+      for(const p of PARTS){
+        for(const [k,v] of store.assets[p]){
+          if(v.url && isExternal(v.url)) v.url = proxify(v.url);
+          if(v.previewUrl && isExternal(v.previewUrl)) v.previewUrl = proxify(v.previewUrl);
+        }
+      }
+      refreshExportLock(); buildGrid();
+    }else{
+      state.useProxy = false;
+      proxyToggle.textContent = 'Use Proxy: OFF';
+      refreshExportLock();
+    }
+  };
+
+  // Exports
+  saveWebpBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    const s=getScale(); const src=cvs;
+    const oc=document.createElement('canvas'); oc.width=Math.round(src.width*s); oc.height=Math.round(src.height*s);
+    const octx=oc.getContext('2d',{alpha:true}); octx.imageSmoothingEnabled=false; octx.clearRect(0,0,oc.width,oc.height);
+    octx.drawImage(src,0,0,src.width,src.height,0,0,oc.width,oc.height);
+    const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+    const a=document.createElement('a'); a.download=(fileBase())+`_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+  saveSelectedBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    const list=[...state.selected].sort((a,b)=>a-b); if(list.length===0) return;
+    const s=getScale(); const oc=document.createElement('canvas'); oc.width=48*s*list.length; oc.height=64*s;
+    const g=oc.getContext('2d'); g.imageSmoothingEnabled=false;
+    list.forEach((i,k)=>{ const sx=(i%9)*48, sy=Math.floor(i/9)*64; g.drawImage(cvs,sx,sy,48,64,48*s*k,0,48*s,64*s); });
+    const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+    const a=document.createElement('a'); a.download=`${fileBase()}-frame-${list.join('_')}_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+  saveAllZipBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    if(!window.JSZip){ alert('JSZip not loaded'); return; }
+    const zip=new JSZip(); const base=fileBase(); const s=getScale();
+    for(let i=0;i<36;i++){
+      const sx=(i%9)*48, sy=Math.floor(i/9)*64;
+      const oc=document.createElement('canvas'); oc.width=48*s; oc.height=64*s;
+      oc.getContext('2d').drawImage(cvs,sx,sy,48,64,0,0,48*s,64*s);
+      const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+      const b64=await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+      zip.file(`frame_${base}_${i}_${s}x.webp`, b64, {base64:true});
+    }
+    const cont=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.download=`frame_all_${base}_0~35_${s}x.zip`; a.href=URL.createObjectURL(cont); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+  exportFramesBtn.addEventListener('click', async ()=>{
+    if(!requireExportOk()) return;
+    const list=[...state.selected].sort((a,b)=>a-b); if(list.length===0) return;
+    const base=fileBase(); const s=getScale();
+    for(let i=0;i<list.length;i++){
+      const frameIdx=list[i];
+      const oc=document.createElement('canvas'); oc.width=48*s; oc.height=64*s;
+      const octx2=oc.getContext('2d'); octx2.imageSmoothingEnabled=false;
+      const sx=(frameIdx%9)*48, sy=Math.floor(frameIdx/9)*64;
+      octx2.drawImage(cvs,sx,sy,48,64,0,0,48*s,64*s);
+      const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
+      const a=document.createElement('a'); a.download=`${base}-frame-${frameIdx}_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+      if(i<list.length-1) await new Promise(r=>setTimeout(r,80));
+    }
+  });
+
+  // Resource deletion (grid, Delete key)
+  function deleteSelectedResources(){
+    const part=store.selPart;
+    if(!store.selectedShapes.size) return;
+    if(!confirm(`${store.selectedShapes.size}개의 리소스를 삭제할까요?`)) return;
+    const map=store.assets[part];
+    for(const shape of store.selectedShapes){
+      const cell=map.get(shape);
+      if(cell){
+        try{
+          if(cell.url && cell.url.startsWith('blob:')) URL.revokeObjectURL(cell.url);
+          if(cell.previewUrl && cell.previewUrl.startsWith('blob:')) URL.revokeObjectURL(cell.previewUrl);
+        }catch(_){}
+        map.delete(shape);
+      }
+    }
+    if(store.pick[part]!=null && !map.has(store.pick[part])){
+      const keys=[...map.keys()].sort((a,b)=>a-b);
+      store.pick[part]=keys.length?keys[0]:null;
+    }
+    store.selectedShapes.clear();
+    buildGrid(); drawSheet(); updateAllRandEnabled();
+  }
+  document.addEventListener('keydown',(e)=>{
+    if(e.key==='Delete'){ deleteSelectedResources(); }
+    if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){
+      if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+      const vis=store._visibleShapes||[]; store.selectedShapes=new Set(vis);
+      document.querySelectorAll('.cell').forEach(c=>{
+        if(c.classList.contains('add')) return;
+        c.classList.add('selected');
+      });
+      e.preventDefault();
+    }
+  });
+
+  // UI layout
+  document.getElementById('bgColor').addEventListener('input',e=>{ const wrap=document.getElementById('canvasWrap'); wrap.style.backgroundImage='none'; wrap.style.backgroundColor=e.target.value; });
+  toggleLeft.addEventListener('click',()=>{ const collapsed=bodyGrid.classList.toggle('collapsed'); leftPanel.classList.toggle('collapsed',collapsed); toggleLeft.textContent=collapsed?'▶':'◀'; });
+  let scale=1; function applyZoom(){ cvs.style.width=(432*scale)+'px'; cvs.style.height=(256*scale)+'px'; }
+  function fit(){ const wrap=document.getElementById('canvasWrap'); const s=Math.min((wrap.clientWidth-16)/432,(wrap.clientHeight-16)/256); scale=Math.max(0.25,Math.min(s,8)); applyZoom(); }
+  zoomInBtn.onclick=()=>{ scale=Math.min(8,scale*1.25); applyZoom(); }; zoomFitBtn.onclick=fit; window.addEventListener('resize',fit); fit();
+
+  // copy text
+  copySel.onclick=async ()=>{ try{ await navigator.clipboard.writeText(selText.textContent); copySel.textContent='Copied'; setTimeout(()=>copySel.textContent='Copy',1000);}catch{ alert('클립보드 권한이 없습니다'); }};
+
+  // perf ticker
+  let last=performance.now(); function tick(t){ const dt=Math.round(t-last); perf.textContent=dt>50?`Busy ${dt}ms`:`Idle`; last=t; requestAnimationFrame(tick);} requestAnimationFrame(tick);
+
+  // init
+  document.addEventListener('DOMContentLoaded', async ()=>{ highlightColor(); selectPart('face'); await drawSheet(); refreshExportLock(); });
+})();
 </script>
 </body>
 </html>
