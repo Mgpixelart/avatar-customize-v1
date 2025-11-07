@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Avatar Customizer — CORS-safe + CDN Scanner</title>
+<title>Avatar Customizer — CORS-safe + CDN Scanner + Known IDs + Fixed Delete</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box}
@@ -11,6 +11,7 @@ html,body{height:100%;margin:0}
 body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif;color:#e8ecf1;background:#0b0d12}
 #app{height:100%;display:grid;grid-template-rows:42px 1fr 30px}
 :root{--rightW: 440px; --leftW:230px; --leftWCollapsed: 48px}
+/* TOP */
 .topbar{display:flex;align-items:center;justify-content:space-between;height:42px;padding:0 10px;background:#0d1220;border-bottom:1px solid #1d2538}
 .title{display:flex;gap:10px;align-items:center}
 .title h1{margin:0;font-size:1rem;line-height:1}
@@ -18,10 +19,14 @@ body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD
 .actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:4px 8px;font-size:.85rem;cursor:pointer}
 .btn:disabled{opacity:.5;cursor:default}
+select{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:4px 8px}
+input[type="text"],input[type="search"],input[type="number"],input[type="color"]{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:4px 8px}
 .pill{font-size:.78rem;color:#9ac3ff}
 input[type="file"]{display:none}
+/* BODY GRID */
 .body{height:100%;display:grid;grid-template-columns:var(--leftW) 1fr 6px var(--rightW);gap:8px;padding:8px;min-height:0}
 .body.collapsed{grid-template-columns:var(--leftWCollapsed) 1fr 6px var(--rightW)}
+/* LEFT */
 .left{background:#121621;border:1px solid #1d2538;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .leftHead{display:flex;align-items:center;justify-content:flex-end;padding:8px;border-bottom:1px solid #1d2538}
 .tablist{list-style:none;margin:0;padding:6px;display:flex;flex-direction:column;gap:6px}
@@ -37,6 +42,7 @@ input[type="file"]{display:none}
 .collapsed .tab .iconPart{display:block; text-align:center; font-size:14px}
 .collapsed .leftHead{justify-content:center}
 #toggleLeft{font-size:10px; padding:2px 4px}
+/* MID */
 .mid{background:#121621;border:1px solid #1d2538;border-radius:12px;display:grid;grid-template-rows:auto 1fr;min-height:0}
 .colors{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-bottom:1px solid #1d2538}
 .swatch{width:20px;height:20px;border-radius:999px;border:2px solid #0b0d12;cursor:pointer;outline:1px solid #2a3558}
@@ -49,11 +55,14 @@ input[type="file"]{display:none}
 .cell.active{box-shadow:0 0 0 2px #6ee7ff inset}
 .cell.selected{outline:2px solid #6ee7ff}
 .badge{position:absolute;top:6px;left:6px;font-size:.7rem;background:#2d3748;color:#e2e8f0;border:1px solid #4a5568;padding:1px 6px;border-radius:999px}
+/* Add cell */
 .cell.add{border:1px dashed #2a385e;background:#0b0f1f;place-items:center}
 .cell.add .plus{font-size:28px;line-height:1;color:#9ab3ff}
 .cell.add .label{color:#9ab3ff}
+/* SPLITTER */
 .split{background:#1d2538;border-radius:6px;cursor:col-resize}
 .split:hover{background:#2a3656}
+/* RIGHT */
 .right{background:#121621;border:1px solid #1d2538;border-radius:12px;display:grid;grid-template-rows:1fr;min-width:320px;min-height:0}
 .stage{display:grid;grid-template-rows:auto 1fr;min-height:0}
 .framebar{display:flex;flex-direction:column;gap:4px;padding:8px;border-bottom:1px solid #1d2538;background:#10182a}
@@ -67,17 +76,19 @@ input[type="file"]{display:none}
 #frameLabel{margin-left:8px;padding:2px 8px;border-radius:12px;background:#223;color:#cfe;font-size:12px}
 .zoom-controls-overlay{position:absolute;bottom:8px;right:8px;display:flex;gap:2px;background:rgba(16,24,42,0.9);border-radius:6px;padding:4px;border:1px solid #243152}
 .zoom-controls-overlay .btn{padding:2px 6px;font-size:11px;min-width:24px;height:24px}
+/* BG picker bottom-left */
 .bg-color-overlay{position:absolute;bottom:8px;left:8px;background:rgba(16,24,42,0.9);padding:4px 6px;border-radius:6px;border:1px solid #243152;display:flex;gap:6px;align-items:center}
 .bg-color-overlay label{font-size:12px;color:#e8ecf1;cursor:pointer}
 .bg-color-overlay input[type="color"]{width:24px;height:24px;padding:0;border:none;cursor:pointer;background:none}
+/* FOOTER */
 .status{display:flex;gap:8px;align-items:center;background:#0d1220;border-top:1px solid #1d2538;padding:4px 8px}
 .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:.82rem;color:#bcd0ff;background:#0f1424;border:1px solid #243152;border-radius:8px;padding:3px 8px;flex:1;overflow:auto;white-space:nowrap}
 .left-group{display:flex;gap:6px;align-items:center}
+/* scrollbars */
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:#0e1426;border-radius:8px}
 ::-webkit-scrollbar-thumb{background:#394b79;border-radius:8px;border:2px solid #0e1426}
 ::-webkit-scrollbar-thumb:hover{background:#4ea1ff}
-.tooltip{border-bottom:1px dotted #8fb4ff;cursor:help}
 </style>
 </head>
 <body>
@@ -90,11 +101,24 @@ input[type="file"]{display:none}
     <div class="actions">
       <span class="pill" id="perf">Idle</span>
       <span class="pill" id="corsState">—</span>
+
       <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip">
       <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*">
       <input id="inFiles" type="file" accept="image/*" multiple style="display:none">
+
       <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
       <button class="btn" id="scanCdn" type="button" title="ZEP CDN을 자동 스캔해 존재하는 번호만 등록">CDN Auto-Scan</button>
+
+      <!-- 초고속: 확정 번호만 추가 -->
+      <select id="knownPart" title="파트 선택">
+        <option value="face">face</option>
+        <option value="skin">skin</option>
+        <option value="hair">hair</option>
+        <option value="clothes">clothes</option>
+        <option value="glass">glass</option>
+      </select>
+      <input id="knownIds" type="text" placeholder="-1,-13,-25…" style="width:170px" title="쉼표로 구분된 번호 목록">
+      <button class="btn" id="addKnown" type="button" title="입력한 번호만 추가(존재 확인 최소 요청)">Add IDs</button>
     </div>
   </div>
 
@@ -162,10 +186,10 @@ input[type="file"]{display:none}
 
 <script>
 (function(){
-  /* ===== CONSTS / STATE ===== */
+  /* ===== CONSTANTS / STATE ===== */
   const ORDER = ['skin','clothes','face','hair','glass'];
   const PART_LABEL = {face:'얼굴', skin:'피부', hair:'헤어', clothes:'의상', glass:'안경'};
-  const PART_ICON  = {face:'🙂',  skin:'🧴', hair:'✂️', clothes:'👕', glass:'👓'};
+  const PART_ICON  = {face:'🙂', skin:'🧴', hair:'✂️', clothes:'👕', glass:'👓'};
   const PARTS = ['face','skin','hair','clothes','glass'];
   const COLORABLE = new Set(['hair','clothes']);
   const COLOR_HEX = ['#111111','#8b8b99','#e58a2b','#f2c94c','#3772ff','#7ed0ff','#8b5e34','#9b59b6','#ff66b3','#eaeaea','#ff3b30','#2ecc71'];
@@ -208,6 +232,9 @@ input[type="file"]{display:none}
   const saveAllZipBtn = document.getElementById('saveAllZip');
   const exportFramesBtn = document.getElementById('exportFrames');
   const scanCdnBtn = document.getElementById('scanCdn');
+  const knownPartSel = document.getElementById('knownPart');
+  const knownIdsInput = document.getElementById('knownIds');
+  const addKnownBtn = document.getElementById('addKnown');
 
   /* ===== STORE ===== */
   const store = window.store = {
@@ -225,7 +252,6 @@ input[type="file"]{display:none}
   /* ===== HELPERS ===== */
   const sameOrigin = (u)=>{ try{ const a=new URL(u, location.href); return a.origin===location.origin; }catch{ return true; } };
   const isBlobOrData = (u)=> u && (u.startsWith('blob:') || u.startsWith('data:'));
-
   function colorIdxFromShape(shape){ return ((-shape - 1) % 12 + 12) % 12; }
   function blockFromShape(shape){ return Math.floor(((-shape - 1) / 12)); }
   function shapeFromBlockColor(block, colorIdx){ return -(block*12 + colorIdx + 1); }
@@ -243,25 +269,23 @@ input[type="file"]{display:none}
     corsState.textContent = label;
     corsState.style.color = locked ? '#ff8585' : '#9ac3ff';
     [saveWebpBtn, saveSelectedBtn, saveAllZipBtn, exportFramesBtn].forEach(b=>{
+      if (!b.getAttribute('data-orig-title')) b.setAttribute('data-orig-title', b.title);
       b.disabled = locked;
-      b.title = locked ? `내보내기 잠김: ${reason}` : b.getAttribute('data-orig-title') || b.title;
+      b.title = locked ? `내보내기 잠김: ${reason}` : b.getAttribute('data-orig-title');
     });
   }
 
   function checkExportSafety(){
-    // 외부 http(s) 자원이 blob化되지 않았으면 위험
     for (const p of PARTS){
       for (const [shape, cell] of store.assets[p]){
         const u = cell?.imgSrcSafe || cell?.url || '';
         if (!u) continue;
         if (isBlobOrData(u) || sameOrigin(u)) continue;
-        // 외부인데 blob로 전환도 못했음 → 잠금
-        return {ok:false, reason:`외부 리소스(${p} #${shape})는 CORS 허용이 없어 저장/복사 불가. 폴더/ZIP로 로드하거나 프록시를 사용.`};
+        return {ok:false, reason:`외부 리소스(${p} #${shape})는 CORS 허용이 없어 저장/복사 불가. 폴더/ZIP로 로드하거나 프록시 사용.`};
       }
     }
     return {ok:true};
   }
-
   function refreshExportLock(){
     const s = checkExportSafety();
     setExportLock(!s.ok, s.reason||'');
@@ -292,14 +316,12 @@ input[type="file"]{display:none}
     try{
       const abs = new URL(u, location.href).href;
       if (isBlobOrData(abs) || sameOrigin(abs)) return {url:abs, safe:true};
-      // 외부 → CORS가 허용되면 fetch 가능
       const resp = await fetch(abs, {mode:'cors', credentials:'omit'});
       if (!resp.ok) throw new Error('http '+resp.status);
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
       return {url:blobUrl, safe:true, revoke:true};
     }catch(_){
-      // 실패 → 마지막 수단: anonymous 이미지 로드(대부분 taint됨)
       return {url:u, safe:false};
     }
   }
@@ -307,13 +329,9 @@ input[type="file"]{display:none}
   async function ensureBitmap(cell){
     if(!cell || !cell.url) return null;
     if (cell.img) return cell.img;
-
-    // 우선 previewUrl이 있으면 썸네일용에만 쓰고, 합성은 url 기준
-    // 합성 안전성 확보를 위해 url을 blob化 시도
     const norm = await normalizeUrlForCanvas(cell.url);
     cell.imgSrcSafe = norm.url;
     cell.imgRevoke = norm.revoke || false;
-
     const im = await loadImage(cell.imgSrcSafe, true);
     if (!im) return null;
     cell.img = im;
@@ -743,9 +761,13 @@ input[type="file"]{display:none}
     cvs.addEventListener('mousemove', (e)=>{ const idx = frameAtEvent(e); state.hover = idx; if(state.dragging){ state.dragEnd = (idx<0? state.dragEnd : idx); } state.dirty=true; });
     cvs.addEventListener('mouseleave', ()=>{ state.hover=-1; state.dirty=true; });
     cvs.addEventListener('mousedown', (e)=>{ if (e.button!==0) return; const idx = frameAtEvent(e); if (idx<0) return; state.dragging=true; state.dragStart=idx; state.dragEnd=idx; state.dirty=true; });
+
     document.addEventListener('click', (e)=>{ if (!cvs.contains(e.target) && !e.target.closest('.canvasWrap')) { if (state.selected.size > 0) { state.selected.clear(); state.anchor = null; state.dirty = true; } } });
     canvasWrap.addEventListener('click', (e)=>{ if (!cvs.contains(e.target)) { if (state.selected.size > 0) { state.selected.clear(); state.anchor = null; state.dirty = true; } } });
-    document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') { if (state.selected.size > 0) { state.selected.clear(); state.anchor = null; state.dirty = true; } } });
+
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'Escape') { if (state.selected.size > 0) { state.selected.clear(); state.anchor = null; state.dirty = true; } }
+    });
 
     // 우클릭 복사(HTTPS 필요, 안전할 때만)
     cvs.addEventListener('contextmenu', async (e)=>{
@@ -812,82 +834,12 @@ input[type="file"]{display:none}
       state.dirty=true;
     });
 
-    // Export buttons (가드 포함)
-    saveSelectedBtn.addEventListener('click', guardExport(async ()=>{
-      if (state.selected.size===0) return;
-      const list=[...state.selected].sort((a,b)=>a-b);
-      const s = __getExportScale();
-      const oc=document.createElement('canvas'); oc.width=48*s*list.length; oc.height=64*s;
-      const octx2=oc.getContext('2d'); octx2.imageSmoothingEnabled=false;
-      list.forEach((i,k)=>{ const sx=(i%9)*48, sy=Math.floor(i/9)*64; octx2.drawImage(cvs, sx, sy, 48,64, 48*s*k, 0, 48*s, 64*s); });
-      const blob = await encodeWebPFromCanvas(oc, {lossless:true, quality:1.0});
-      const a=document.createElement('a');
-      a.download = `${window.fileBase()}-frame-${list.join('_')}_${s}x.webp`; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-    }));
-    saveAllZipBtn.addEventListener('click', guardExport(async ()=>{
-      if (!window.JSZip){ alert('JSZip not loaded'); return; }
-      const zip = new JSZip();
-      const currentNumbers = window.fileBase ? window.fileBase() : '0,0,0,0';
-      const [faceNum, skinNum, hairNum, clothesNum] = currentNumbers.split(',');
-      const s = __getExportScale();
-      const zipFileName = `frame_all_${faceNum}${skinNum}${hairNum}${clothesNum}_0~35_${s}x.zip`;
-      for(let i=0;i<36;i++){
-        const sx=(i%9)*48, sy=Math.floor(i/9)*64;
-        const oc=document.createElement('canvas'); oc.width=48*s; oc.height=64*s;
-        oc.getContext('2d').drawImage(cvs, sx, sy,48,64,0,0,48*s,64*s);
-        const blob=await encodeWebPFromCanvas(oc,{lossless:true,quality:1.0});
-        const b64 = await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
-        zip.file(`frame_${faceNum}${skinNum}${hairNum}${clothesNum}_${i}.webp`, b64, {base64:true});
-      }
-      const cont = await zip.generateAsync({type:'blob'});
-      const a=document.createElement('a'); a.download=zipFileName; a.href=URL.createObjectURL(cont); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-    }));
-    exportFramesBtn.addEventListener('click', guardExport(async ()=>{
-      if (state.selected.size===0) return;
-      const list=[...state.selected].sort((a,b)=>a-b);
-      const baseName = window.fileBase();
-      for(let i=0; i<list.length; i++){
-        const s = __getExportScale();
-        const frameIdx = list[i];
-        const oc=document.createElement('canvas'); oc.width=48*s; oc.height=64*s;
-        const octx2=oc.getContext('2d'); octx2.imageSmoothingEnabled=false;
-        const sx=(frameIdx%9)*48, sy=Math.floor(frameIdx/9)*64;
-        octx2.drawImage(cvs, sx, sy, 48,64, 0, 0, 48*s, 64*s);
-        const blob = await encodeWebPFromCanvas(oc, {lossless:true, quality:1.0});
-        const a=document.createElement('a'); 
-        a.download = `${baseName}-frame-${frameIdx}_${s}x.webp`; 
-        a.href=URL.createObjectURL(blob); 
-        a.click(); 
-        setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-        if(i < list.length - 1) await new Promise(r=>setTimeout(r, 80));
-      }
-    }));
-    saveWebpBtn.addEventListener('click', guardExport(async ()=>{
-      const s = __getExportScale();
-      const src = cvs;
-      const oc = document.createElement('canvas');
-      oc.width = Math.round(src.width * s);
-      oc.height = Math.round(src.height * s);
-      const octx = oc.getContext('2d', {alpha:true});
-      octx.imageSmoothingEnabled = false;
-      octx.clearRect(0,0,oc.width,oc.height);
-      octx.drawImage(src, 0,0, src.width, src.height, 0,0, oc.width, oc.height);
-      const blob = await encodeWebPFromCanvas(oc, {lossless:true, quality:1.0});
-      const a = document.createElement('a');
-      a.download = (window.fileBase?window.fileBase():'sheet') + `_${s}x.webp`;
-      a.href = URL.createObjectURL(blob);
-      a.click();
-      setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-    }));
-
-    // Delete / Undo
-    function adjustPickAfterDeletion(part, deletedSet){
-      if (store.pick[part]!=null && deletedSet.has(store.pick[part])){
-        const keys = [...store.assets[part].keys()].sort((a,b)=>a-b);
-        store.pick[part] = keys.length ? keys[0] : null;
-      }
-    }
+    // ===== Delete / Undo (고정) =====
     document.addEventListener('keydown', (e)=>{
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+      if (tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT' || (e.target && e.target.isContentEditable)) return;
+
+      // 전체 선택
       if ((e.ctrlKey || e.metaKey) && (e.key==='a' || e.key==='A')){
         e.preventDefault();
         const vis = store._visibleShapes || [];
@@ -898,6 +850,8 @@ input[type="file"]{display:none}
         });
         return;
       }
+
+      // Undo
       if ((e.ctrlKey || e.metaKey) && (e.key==='z' || e.key==='Z')){
         e.preventDefault();
         const op = (window.__HIST && window.__HIST.stack.length) ? window.__HIST.stack.pop() : null;
@@ -914,22 +868,33 @@ input[type="file"]{display:none}
         }
         return;
       }
-      if (e.key !== 'Delete') return;
-      if (store.selectedShapes.size === 0) return;
+
+      // Delete / Backspace
+      if (!(e.key==='Delete' || e.key==='Backspace')) return;
+
       const part = store.selPart;
-      const count = store.selectedShapes.size;
+      const map = store.assets[part];
+      if (!map) return;
+
+      let targets = new Set(store.selectedShapes);
+      if (targets.size===0 && store.pick[part]!=null){
+        targets.add(store.pick[part]);
+      }
+      if (targets.size===0) return;
+
+      e.preventDefault();
+      const count = targets.size;
       if (!confirm(`${count}개의 리소스를 삭제하시겠습니까?`)) return;
 
-      const map = store.assets[part];
-      const toDel = new Set(store.selectedShapes);
       if (!window.__HIST) window.__HIST = {stack:[], push(op){this.stack.push(op);}, pop(){return this.stack.pop();}};
       const undoItems = [];
-      toDel.forEach(shape=>{
+      targets.forEach(shape=>{
         const cell = map.get(shape);
         if (cell) undoItems.push({shape, cell:{name:cell.name, url:cell.imgSrcSafe||cell.url, previewUrl:cell.previewUrl}});
       });
       window.__HIST.push({type:'delete', part, items:undoItems});
-      toDel.forEach(shape=>{
+
+      targets.forEach(shape=>{
         const cell = map.get(shape);
         if(!cell) return;
         try{
@@ -939,8 +904,13 @@ input[type="file"]{display:none}
         }catch(_){}
         map.delete(shape);
       });
-      adjustPickAfterDeletion(part, toDel);
+
+      if (store.pick[part]!=null && targets.has(store.pick[part])){
+        const keys = [...map.keys()].sort((a,b)=>a-b);
+        store.pick[part] = keys.length ? keys[0] : null;
+      }
       store.selectedShapes.clear();
+
       buildGrid(); drawSheet(); updateAllRandEnabled(); refreshExportLock();
     });
   })();
@@ -971,7 +941,6 @@ input[type="file"]{display:none}
     try{
       const r = await fetch(url, {method:'HEAD', mode:'cors', credentials:'omit'});
       if (r.ok) return true;
-      // 일부 CDN은 HEAD 차단 → GET으로 재시도(작은 이미지라 문제없음)
       const g = await fetch(url, {mode:'cors', credentials:'omit'});
       return g.ok;
     }catch{ return false; }
@@ -990,7 +959,6 @@ input[type="file"]{display:none}
       const okPrev = await urlExists(prev);
       const cell = map.get(n) || {url:null, previewUrl:null, name:`${part}_${n}.png`};
       cell.url = full; cell.previewUrl = okPrev? prev : full;
-      // 안전화 시도
       const norm = await normalizeUrlForCanvas(cell.url);
       cell.imgSrcSafe = norm.url; cell.imgRevoke = norm.revoke||false;
       map.set(n, cell);
@@ -1008,7 +976,6 @@ input[type="file"]{display:none}
       total += got;
     }
     perf.textContent = `Scan done: ${total} assets`;
-    // 기본 선택 세팅
     for (const p of PARTS){
       if (store.pick[p]!=null) continue;
       const keys = [...store.assets[p].keys()].sort((a,b)=>a-b);
@@ -1024,21 +991,70 @@ input[type="file"]{display:none}
     toast(`CDN 스캔 완료: ${total}개`);
   });
 
+  /* ===== Known IDs quick add ===== */
+  function parseIds(str){
+    if (!str) return [];
+    return str.split(/[,，\s]+/).map(s=>parseInt(s,10)).filter(n=>Number.isInteger(n));
+  }
+  async function addKnownIds(part, ids){
+    const map = store.assets[part];
+    let added = 0;
+    for (const n of ids){
+      const base = `${ZEP_BASE}/${part}/${n}`;
+      const full = `${base}.png`;
+      const prev = `${base}_preview.png`;
+      let ok = false;
+      try{
+        const r = await fetch(full, {mode:'cors', credentials:'omit'});
+        ok = r.ok;
+      }catch(_){ ok = false; }
+      if (!ok) continue;
+
+      const cell = map.get(n) || {url:null, previewUrl:null, name:`${part}_${n}.png`};
+      cell.url = full;
+      try{
+        const rp = await fetch(prev, {mode:'cors', credentials:'omit'});
+        cell.previewUrl = rp.ok ? prev : full;
+      }catch{ cell.previewUrl = full; }
+      const norm = await normalizeUrlForCanvas(cell.url);
+      cell.imgSrcSafe = norm.url; cell.imgRevoke = norm.revoke||false;
+      map.set(n, cell);
+      added++;
+    }
+    if (store.pick[part]==null){
+      const keys=[...map.keys()].sort((a,b)=>a-b);
+      if (keys.length) store.pick[part] = keys[0];
+    }
+    if (store.pick.hair!=null) store.color = colorIdxFromShape(store.pick.hair);
+    else if (store.pick.clothes!=null) store.color = colorIdxFromShape(store.pick.clothes);
+
+    selectPart(store.selPart || part);
+    await drawSheet();
+    updateAllRandEnabled();
+    refreshExportLock();
+    toast(`Added ${added}/${ids.length} for ${part}`);
+  }
+  addKnownBtn.addEventListener('click', async ()=>{
+    const part = knownPartSel.value;
+    const ids = parseIds(knownIdsInput.value);
+    if (!ids.length){ toast('번호를 입력하세요'); return; }
+    addKnownBtn.disabled = true;
+    await addKnownIds(part, ids);
+    addKnownBtn.disabled = false;
+  });
+
   /* ===== BOOT ===== */
   document.addEventListener('DOMContentLoaded', async ()=>{
     highlightColor();
     selectPart('face');
     await drawSheet();
-
-    // exportScale 기억
     const sel = document.getElementById('exportScale');
     if (sel){
       const saved = +localStorage.getItem('exportScale')||1;
       if ([1,2,3,4,6,8,16].includes(saved)) sel.value = String(saved);
       sel.addEventListener('change', ()=>localStorage.setItem('exportScale', sel.value));
     }
-
-    refreshExportLock(); // 초기 상태 표시
+    refreshExportLock();
   });
 })();
 </script>
