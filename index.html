@@ -1264,8 +1264,16 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
 
-
 <script>
+/* ========== GitHub 리소스 자동 로더 (manifest 불필요) ========== */
+/* - 목록: jsDelivr Data API
+   - 이미지: jsDelivr CDN
+   - 카테고리: 폴더명(face/skin/hair/clothes/glass)
+   - 프리뷰: 파일명에 "preview" 포함 시 previewUrl로 등록
+   - 색 슬롯: 파일명 숫자(음수/정수, 예 -672) → shape로 사용
+   - CSP: eval/new Function 사용 안 함
+*/
+
 async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
   const listURL = `https://data.jsdelivr.com/v1/package/gh/${user}/${repo}@${ref}/flat`;
   console.log('[auto-loader] listURL =', listURL);
@@ -1278,21 +1286,28 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
   const baseUrl = `https://cdn.jsdelivr.net/gh/${user}/${repo}@${ref}/`;
   console.log('[auto-loader] baseUrl =', baseUrl);
 
+  // store 초기화
   if (!window.store) window.store = {};
-  store.assets ??= {}; store.pick ??= {};
+  store.assets ??= {};
+  store.pick ??= {};
   parts.forEach(p => (store.assets[p] ??= new Map()));
 
+  // 파일 → store.assets[part]: Map(shape → {url,previewUrl,name})
   let added = 0;
   for (const f of files) {
-    let path = f.name;                   // ex: "/assets/clothes/-1.webp"
+    let path = f.name;                          // 예: "/assets/clothes/-1.webp"
     if (!/\.webp$/i.test(path)) continue;
-    path = path.replace(/^\/+/, '');     // strip leading "/"
+
+    // 선두 슬래시 제거
+    path = path.replace(/^\/+/, '');            // "assets/clothes/-1.webp"
+
+    // 파트 판별: 어디에 있든 "/{part}/" 포함되면 인정
     const lower = path.toLowerCase();
     const part = parts.find(p => lower.includes(`/${p}/`));
     if (!part) continue;
 
-    const file = path.split('/').pop();
-    const m = file && file.match(/-?\d+/);
+    const file = path.split('/').pop() || '';
+    const m = file.match(/-?\d+/);              // 음수/정수 shape
     if (!m) continue;
     const shape = parseInt(m[0], 10);
 
@@ -1304,31 +1319,81 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
     if (!cell) { cell = { url: null, previewUrl: null, name: file }; map.set(shape, cell); }
     if (isPreview) cell.previewUrl = url; else cell.url = url;
     if (!cell.previewUrl) cell.previewUrl = cell.url;
+
     added++;
   }
   console.log('[auto-loader] grouped assets ->',
     Object.fromEntries(parts.map(p => [p, store.assets[p].size])));
 
+  // 호환 계층: Map → Array / Plain Object (레거시 UI 대비)
+  __ensureCompatibility(parts);
+
+  // 초기 선택값
   for (const p of parts) {
     if (store.pick[p] != null) continue;
     const keys = [...store.assets[p].keys()].sort((a,b)=>a-b);
     if (keys.length) store.pick[p] = keys[0];
   }
 
+  // 실제로 데이터가 있는 파트 중 첫 번째로 전환
   const firstPart = parts.find(p => store.assets[p]?.size > 0) || 'face';
   if (typeof selectPart === 'function') selectPart(firstPart);
 
+  // 색 버킷(기존 함수 재사용)
   if (typeof colorIdxFromShape === 'function') {
     if (store.pick.hair != null) store.color = colorIdxFromShape(store.pick.hair);
     else if (store.pick.clothes != null) store.color = colorIdxFromShape(store.pick.clothes);
   }
 
+  // 렌더 플로우
   if (typeof drawSheet === 'function') await drawSheet();
   if (typeof buildGrid === 'function') buildGrid();
 
   console.log('[auto-loader] done. added entries =', added);
 }
 
+// Map → Array/Object 변환 + 별칭 노출 (UI 호환)
+function __ensureCompatibility(parts){
+  if (!window.store || !store.assets) return;
+
+  // Array 형태
+  store.assetsArray = Object.fromEntries(parts.map(p=>{
+    const arr = [...(store.assets[p]||new Map()).entries()]
+      .sort((a,b)=>a[0]-b[0])
+      .map(([shape, cell])=>({
+        shape,
+        url: cell?.url || null,
+        previewUrl: cell?.previewUrl || cell?.url || null,
+        name: cell?.name || String(shape)
+      }));
+    return [p, arr];
+  }));
+
+  // Plain Object 형태
+  store.assetsPlain = Object.fromEntries(parts.map(p=>{
+    const obj = {};
+    for (const [shape, cell] of (store.assets[p]||new Map()).entries()){
+      obj[shape] = {
+        url: cell?.url || null,
+        previewUrl: cell?.previewUrl || cell?.url || null,
+        name: cell?.name || String(shape)
+      };
+    }
+    return [p, obj];
+  }));
+
+  // 레거시 별칭
+  store.list  = store.list  || store.assetsArray;
+  store.items = store.items || store.assetsArray;
+  store.data  = store.data  || store.assetsPlain;
+
+  try {
+    const counts = Object.fromEntries(parts.map(p=>[p, (store.assets[p]||new Map()).size]));
+    console.log('[compat] counts', counts);
+  } catch(e){}
+}
+
+// 즉시 실행 (배포 안정화 후 ref는 태그 예: 'v1' 권장)
 (async () => {
   try {
     await loadFromGitHubAuto({
