@@ -3,33 +3,27 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Avatar Customizer — CDN All-Scan + Proxy Exports</title>
+<title>Avatar Customizer — Proxy-enabled Exports</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif;color:#e8ecf1;background:#0b0d12}
 #app{height:100%;display:grid;grid-template-rows:56px 1fr 30px}
-:root{--rightW:620px; --leftW:230px; --leftWCollapsed:48px}
-
-/* TOP */
+:root{--rightW:580px; --leftW:230px; --leftWCollapsed:48px}
 .topbar{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 10px;background:#0d1220;border-bottom:1px solid #1d2538}
 .title{display:flex;gap:10px;align-items:center}
 .title h1{margin:0;font-size:1rem;line-height:1}
 .title .meta{font-size:.8rem;color:#95a0b3}
 .actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:6px 10px;font-size:.85rem;cursor:pointer;white-space:nowrap}
+.btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:6px 10px;font-size:.85rem;cursor:pointer}
 .btn:disabled{opacity:.5;cursor:default}
 input[type="file"]{display:none}
 select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:6px 10px}
 .small{font-size:.78rem;color:#9ac3ff}
 .small.warn{color:#ffb4b4}
-
-/* BODY GRID */
 .body{height:100%;display:grid;grid-template-columns:var(--leftW) 1fr 6px var(--rightW);gap:8px;padding:8px;min-height:0}
 .body.collapsed{grid-template-columns:var(--leftWCollapsed) 1fr 6px var(--rightW)}
-
-/* LEFT */
 .left{background:#121621;border:1px solid #1d2538;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .leftHead{display:flex;align-items:center;justify-content:flex-end;padding:8px;border-bottom:1px solid #1d2538}
 .tablist{list-style:none;margin:0;padding:6px;display:flex;flex-direction:column;gap:6px}
@@ -37,8 +31,6 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
 .tab .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rowbtns{display:flex;gap:6px}
 .icon{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#18223a;border:1px solid #243152;cursor:pointer}
-
-/* MID */
 .mid{background:#121621;border:1px solid #1d2538;border-radius:12px;display:grid;grid-template-rows:auto 1fr;min-height:0}
 .colors{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-bottom:1px solid #1d2538}
 .swatch{width:20px;height:20px;border-radius:999px;border:2px solid #0b0d12;cursor:pointer;outline:1px solid #2a3558}
@@ -53,12 +45,8 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
 .badge{position:absolute;top:6px;left:6px;font-size:.7rem;background:#2d3748;color:#e2e8f0;border:1px solid #4a5568;padding:1px 6px;border-radius:999px}
 .cell.add{border:1px dashed #2a385e;background:#0b0f1f;place-items:center}
 .cell.add .plus{font-size:28px;line-height:1;color:#9ab3ff}
-
-/* SPLITTER */
 .split{background:#1d2538;border-radius:6px;cursor:col-resize}
-
-/* RIGHT */
-.right{background:#121621;border:1px solid #1d2538;border-radius:12px;display:grid;grid-template-rows:1fr;min-width:420px;min-height:0}
+.right{background:#121621;border:1px solid #1d2538;border-radius:12px;display:grid;grid-template-rows:1fr;min-width:380px;min-height:0}
 .stage{display:grid;grid-template-rows:auto 1fr;min-height:0}
 .framebar{display:flex;flex-direction:column;gap:6px;padding:8px;border-bottom:1px solid #1d2538;background:#10182a;overflow-x:auto}
 .framebar-top{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;row-gap:8px}
@@ -67,16 +55,8 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
 #sheet{image-rendering:pixelated;display:block}
 #frameLabel{margin-left:8px;padding:2px 8px;border-radius:12px;background:#223;color:#cfe;font-size:12px}
 .bg-color-overlay{position:absolute;bottom:8px;left:8px;background:rgba(16,24,42,0.9);padding:4px 6px;border-radius:6px;border:1px solid #243152;display:flex;gap:6px;align-items:center}
-
-/* FOOTER */
 .status{display:flex;gap:8px;align-items:center;background:#0d1220;border-top:1px solid #1d2538;padding:4px 8px}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem;color:#bcd0ff;background:#0f1424;border:1px solid #243152;border-radius:8px;padding:3px 8px;flex:1;overflow:auto;white-space:nowrap}
-
-/* scrollbars */
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-track{background:#0e1426;border-radius:8px}
-::-webkit-scrollbar-thumb{background:#394b79;border-radius:8px;border:2px solid #0e1426}
-::-webkit-scrollbar-thumb:hover{background:#4ea1ff}
 </style>
 </head>
 <body>
@@ -84,7 +64,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   <div class="topbar">
     <div class="title">
       <h1>Avatar Customizer</h1>
-      <div class="meta">CDN All-Scan · Proxy exports · 432×256 · 36 frames</div>
+      <div class="meta">Proxy-enabled exports · 432×256 · 36 frames</div>
     </div>
     <div class="actions">
       <span class="small" id="perf">Idle</span>
@@ -92,8 +72,9 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
       <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip">
       <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*">
       <input id="inFiles" type="file" accept="image/*" multiple style="display:none">
-      <button class="btn" id="cdnScanAll" type="button" title="모든 파트 일괄 스캔">CDN All-Scan</button>
-      <input id="proxyBase" type="text" style="min-width:280px" value="https://corsproxy.io/?url=" placeholder="https://your-proxy.example.com">
+      <button class="btn" id="cdnScan" type="button">CDN Auto-Scan</button>
+      <!-- Proxy controls -->
+      <input id="proxyBase" type="text" placeholder="https://your-proxy.example.com" style="min-width:280px">
       <button class="btn" id="proxyToggle" type="button" title="외부 이미지를 프록시로 라우팅">Use Proxy: OFF</button>
       <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
     </div>
@@ -116,7 +97,9 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
       <div class="stage">
         <div class="framebar">
           <div class="framebar-top">
-            <div class="left-group"><span class="small">프레임 <span id="frameLabel">-</span></span></div>
+            <div class="left-group">
+              <span class="small">프레임 <span id="frameLabel">-</span></span>
+            </div>
             <div class="zoom-controls">
               <button class="btn" id="zoomInOverlay" title="확대">＋</button>
               <button class="btn" id="zoomFitOverlay" title="Fit">Fit</button>
@@ -157,13 +140,12 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   const COLOR_HEX=['#111111','#8b8b99','#e58a2b','#f2c94c','#3772ff','#7ed0ff','#8b5e34','#9b59b6','#ff66b3','#eaeaea','#ff3b30','#2ecc71'];
   const ZEP_BASE='https://cdn-static.zep.us/static/assets/sprites';
 
-  // DOM
   const perf=document.getElementById('perf');
   const corsState=document.getElementById('corsState');
   const inZip=document.getElementById('inZip');
   const inDir=document.getElementById('inDir');
   const inFiles=document.getElementById('inFiles');
-  const cdnScanAllBtn=document.getElementById('cdnScanAll');
+  const cdnScanBtn=document.getElementById('cdnScan');
   const proxyBaseInput=document.getElementById('proxyBase');
   const proxyToggle=document.getElementById('proxyToggle');
   const allRand=document.getElementById('allRand');
@@ -185,42 +167,25 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   const leftPanel=document.getElementById('leftPanel');
   const toggleLeft=document.getElementById('toggleLeft');
 
-  // Store
   const store=window.store={
     assets:{face:new Map(),skin:new Map(),hair:new Map(),clothes:new Map(),glass:new Map()},
     selPart:'face', color:0,
     pick:{face:null,skin:null,hair:null,clothes:null,glass:null},
     selectedShapes:new Set(), _visibleShapes:[], _anchorShape:null
   };
-  const state={selected:new Set(),hover:-1, useProxy:false, proxyBase:proxyBaseInput.value.trim()};
 
-  // Utils
+  const state={selected:new Set(),hover:-1, useProxy:false, proxyBase:''};
+
   function isExternal(u){ try{ if(!u) return false; if(u.startsWith('blob:')||u.startsWith('data:')) return false; const a=new URL(u,location.href); return a.origin!==location.origin; }catch{return false;}}
-  function proxify(u){ if(!state.useProxy) return u; if(!state.proxyBase) return u; const base=state.proxyBase.replace(/\/?$/, ''); // leave trailing slash if present
-    // if base ends with '?url=' style, just append original
-    if (/[\?&]url=$/i.test(base)) return base + encodeURIComponent(u);
-    return base + (base.includes('?') ? '&' : '?') + 'u=' + encodeURIComponent(u);
-  }
+  function proxify(u){ if(!state.useProxy) return u; if(!state.proxyBase) return u; return state.proxyBase.replace(/\/$/,'') + '?u=' + encodeURIComponent(u); }
 
   function refreshExportLock(){
-    // If proxy is ON, we assume CORS-safe (proxy returns ACAO:*). Enable exports.
-    if (state.useProxy) {
-      corsState.textContent='export: ok (proxy)';
-      corsState.title='프록시 사용 중 — 내보내기 가능';
-      saveWebpBtn.disabled=saveSelectedBtn.disabled=saveAllZipBtn.disabled=exportFramesBtn.disabled=false;
-      return;
-    }
     let locked=false;
-    for(const p of PARTS){
-      for(const v of store.assets[p].values()){
-        if(v && v.url && isExternal(v.url)){ locked=true; break; }
-        if(v && v.previewUrl && isExternal(v.previewUrl)){ locked=true; break; }
-      }
-      if(locked) break;
-    }
+    for(const p of PARTS){ for(const v of store.assets[p].values()){ if(v&&v.url&&isExternal(v.url)){ locked=true; break; } } if(locked) break; }
     corsState.textContent = locked ? 'export: CORS-locked' : 'export: ok';
     corsState.title = locked ? '외부 이미지 존재 — 프록시 사용 또는 ZIP/폴더 업로드 권장' : '내보내기 가능';
-    saveWebpBtn.disabled=saveSelectedBtn.disabled=saveAllZipBtn.disabled=exportFramesBtn.disabled=locked;
+    const dis=locked;
+    saveWebpBtn.disabled=dis; saveSelectedBtn.disabled=dis; saveAllZipBtn.disabled=dis; exportFramesBtn.disabled=dis;
   }
 
   function colorIdxFromShape(shape){ return ((-shape - 1) % 12 + 12) % 12; }
@@ -312,13 +277,13 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   }
   function selectPart(p){ store.selPart=p; activateTab(p); colorBar.style.display=COLORABLE.has(p)?'flex':'none'; highlightColor(); buildGrid(); }
 
-  // Export helpers
+  // Exports
   function fileBase(){ const t=selText.textContent||''; const face=t.match(/face:\s*([\-\d]+)/i); const skin=t.match(/skin:\s*([\-\d]+)/i); const hair=t.match(/hair:\s*([\-\d]+)/i); const clothes=t.match(/clothes:\s*([\-\d]+)/i); if(face&&skin&&hair&&clothes) return `${face[1]},${skin[1]},${hair[1]},${clothes[1]}`; return 'sheet'; }
   function getScale(){ const el=document.getElementById('exportScale'); let s=el?parseFloat(el.value||'1'):1; if(!Number.isFinite(s)||s<=0) s=1; return Math.min(16,Math.max(1,s)); }
   async function encodeWebPFromCanvas(canvas,opt={lossless:true,quality:1.0}){ return await new Promise(res=>canvas.toBlob(res,'image/webp',opt.quality)); }
   function requireExportOk(){ if(saveWebpBtn.disabled){ alert('외부 이미지 존재. 프록시를 설정하고 Use Proxy를 켜거나, ZIP/폴더로 불러오세요.'); return false;} return true; }
 
-  // Overlay for frame multi-select (+ copy)
+  // Overlay (frame selection)
   (function initOverlay(){
     const wrap=document.getElementById('canvasWrap'); let overlay=document.getElementById('sheetOverlay');
     if(!overlay){ overlay=document.createElement('canvas'); overlay.id='sheetOverlay'; overlay.width=432; overlay.height=256; overlay.style.position='absolute'; overlay.style.inset='0'; overlay.style.pointerEvents='none'; overlay.style.imageRendering='pixelated'; wrap.style.position='relative'; cvs.style.position='relative'; wrap.appendChild(overlay); }
@@ -328,7 +293,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
 
     function compressRanges(arr){ if(arr.length===0) return '-'; arr.sort((a,b)=>a-b); let ranges=[], s=arr[0], prev=arr[0]; for(let i=1;i<arr.length;i++){ const n=arr[i]; if(n===prev+1){ prev=n; continue;} ranges.push(s===prev?`${s}`:`${s}~${prev}`); s=prev=n;} ranges.push(s===prev?`${s}`:`${s}~${prev}`); return ranges.join(','); }
     function frameAt(e){ const r=cvs.getBoundingClientRect(), sx=(e.clientX-r.left)*(cvs.width/r.width), sy=(e.clientY-r.top)*(cvs.height/r.height); if(sx<0||sy<0||sx>=cvs.width||sy>=cvs.height) return -1; const c=Math.floor(sx/48), rr=Math.floor(sy/64); const idx=rr*9+c; return (idx>=0&&idx<36)?idx:-1; }
-    function rectOf(i){ const c=i%9, r=Math.floor(i/9); return {x:c*48,y=r*64,w:48,h:64}; }
+    function rectOf(i){ const c=i%9, r=Math.floor(i/9); return {x:c*48,y:r*64,w:48,h:64}; }
     function hit(i,R){ const a=rectOf(i); return !(a.x+a.w<=R.x||a.y+a.h<=R.y||a.x>=R.x+R.w||a.y>=R.y+R.h); }
     function draw(){
       if(!st.dirty) return; st.dirty=false;
@@ -344,22 +309,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     cvs.addEventListener('mousemove',(e)=>{ const idx=frameAt(e); st.hover=idx; if(st.dragging){ st.dragEnd=(idx<0?st.dragEnd:idx);} st.dirty=true; });
     cvs.addEventListener('mouseleave',()=>{ st.hover=-1; st.dirty=true; });
     cvs.addEventListener('mousedown',(e)=>{ if(e.button!==0) return; const idx=frameAt(e); if(idx<0) return; st.dragging=true; st.dragStart=idx; st.dragEnd=idx; st.dirty=true; });
-    window.addEventListener('mouseup',(e)=>{
-      if(!st.dragging) return;
-      st.dragging=false;
-      const a=st.dragStart, b=st.dragEnd;
-      if(a!=null && b!=null){
-        const A=rectOf(a), B=rectOf(b);
-        const R={x:Math.min(A.x,B.x),y:Math.min(A.y,B.y),w:Math.abs(A.x-B.x)+48,h:Math.abs(A.y-B.y)+64};
-        let set=new Set(); for(let i=0;i<36;i++) if(hit(i,R)) set.add(i);
-        if(e.ctrlKey||e.metaKey){ set.forEach(i=>{ if(st.selected.has(i)) st.selected.delete(i); else st.selected.add(i); }); }
-        else { st.selected=set; }
-        st.anchor=b;
-      }
-      st.dragStart=null; st.dragEnd=null; st.dirty=true;
-    }, {capture:true});
-
-    // Contextmenu copy (single/multi)
+    window.addEventListener('mouseup',(e)=>{ if(!st.dragging) return; st.dragging=false; const a=st.dragStart, b=st.dragEnd; if(a!=null && b!=null){ const A=rectOf(a), B=rectOf(b); const R={x:Math.min(A.x,B.x),y:Math.min(A.y,B.y),w:Math.abs(A.x-B.x)+48,h:Math.abs(A.y-B.y)+64}; let set=new Set(); for(let i=0;i<36;i++) if(hit(i,R)) set.add(i); if(e.ctrlKey||e.metaKey){ set.forEach(i=>{ if(st.selected.has(i)) st.selected.delete(i); else st.selected.add(i); }); } else { st.selected=set; } st.anchor=b; } st.dragStart=null; st.dragEnd=null; st.dirty=true; },{capture:true});
     cvs.addEventListener('contextmenu', async (e)=>{
       if (st.selected.size===0) return;
       e.preventDefault();
@@ -368,13 +318,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
       list.forEach((i,k)=>{ const sx=(i%9)*48, sy=Math.floor(i/9)*64; g.drawImage(cvs,sx,sy,48,64,48*k,0,48,64); });
       try{ const blob=await new Promise(res=>oc.toBlob(res,'image/png')); await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); perf.textContent='✅ Copied'; }catch{ window.open(oc.toDataURL('image/png'),'_blank'); }
     });
-
-    // Select all frames
-    document.addEventListener('keydown',(e)=>{
-      if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){
-        e.preventDefault(); st.selected=new Set(Array.from({length:36},(_,i)=>i)); st.dirty=true;
-      }
-    });
+    document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){ e.preventDefault(); st.selected=new Set(Array.from({length:36},(_,i)=>i)); st.dirty=true; }});
   })();
 
   // Random/Reset
@@ -438,15 +382,9 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     selectPart('face'); await drawSheet(); updateAllRandEnabled(); refreshExportLock();
   });
 
-  // CDN All-Scan with optional proxy
-  function urlExists(url){
-    return new Promise((resolve)=>{
-      const img=new Image();
-      img.onload=()=>resolve(true);
-      img.onerror=()=>resolve(false);
-      img.crossOrigin='anonymous';
-      img.src=url + (url.includes('?')?'&':'?') + 't=' + Date.now();
-    });
+  // CDN Auto-Scan with optional proxy
+  async function urlExists(url){
+    return new Promise((resolve)=>{ const img=new Image(); img.onload=()=>resolve(true); img.onerror=()=>resolve(false); img.crossOrigin='anonymous'; img.src=url + (url.includes('?')?'&':'?') + 't=' + Date.now(); });
   }
   async function scanPart(part){
     const ranges={ face:{start:-1,end:-300,step:-1}, skin:{start:-1,end:-120,step:-1}, hair:{start:-1,end:-1200,step:-1}, clothes:{start:-1,end:-1200,step:-1}, glass:{start:-1,end:-400,step:-1} };
@@ -454,75 +392,56 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     for(let n=R.start; n>=R.end; n+=R.step){
       const raw=`${ZEP_BASE}/${part}/${n}.png`; const rawPrev=`${ZEP_BASE}/${part}/${n}_preview.png`;
       const src=proxify(raw); const prev=proxify(rawPrev);
-      const ok=await urlExists(src);
-      if(!ok){ miss++; if(miss>=stopAt) break; continue; } else { miss=0; }
+      const ok=await urlExists(src); if(!ok){ miss++; if(miss>=stopAt) break; continue; } else { miss=0; }
       const cell=store.assets[part].get(n) || {url:null,previewUrl:null,name:`${part}_${n}.png`};
       cell.url=src; cell.previewUrl=(await urlExists(prev))?prev:src; store.assets[part].set(n,cell); added++;
       if(added%10===0) perf.textContent=`scan ${part}: +${added}`;
     }
     perf.textContent=`scan ${part}: +${added}`;
     if(store.pick[part]==null){ const keys=[...store.assets[part].keys()].sort((a,b)=>a-b); store.pick[part]=keys[0]??null; }
+    refreshExportLock(); selectPart(part); await drawSheet();
   }
-
-  async function scanAllParts(){
-    corsState.textContent = state.useProxy ? 'export: ok (proxy)' : 'export: CORS-locked?';
-    const parts = PARTS.slice();
-    for(const p of parts){
-      perf.textContent = `scanning ${p} ...`;
-      await scanPart(p);
-      // render as we go
-      selectPart(p);
-      await drawSheet();
-      updateAllRandEnabled();
-    }
-    refreshExportLock();
-    perf.textContent = 'scan done';
-    // return to face tab
-    selectPart('face'); await drawSheet();
-  }
-
-  cdnScanAllBtn.addEventListener('click', scanAllParts);
+  cdnScanBtn.onclick=()=>scanPart('face');
 
   // Proxy controls
   proxyToggle.onclick=()=>{
-    const base=(proxyBaseInput.value||'').trim();
+    const base = (proxyBaseInput.value||'').trim();
     if(!state.useProxy){
-      if(!base){ alert('프록시 URL을 입력하세요. 예: https://corsproxy.io/?url= 또는 Cloudflare Worker'); return; }
+      if(!base){ alert('프록시 URL을 입력하세요. 예: https://your-worker.example.com'); return; }
       state.proxyBase = base;
       state.useProxy = true;
       proxyToggle.textContent = 'Use Proxy: ON';
-      // rewrite existing external URLs through proxy
+      // rewrite external URLs already loaded
       for(const p of PARTS){
         for(const [k,v] of store.assets[p]){
           if(v.url && isExternal(v.url)) v.url = proxify(v.url);
           if(v.previewUrl && isExternal(v.previewUrl)) v.previewUrl = proxify(v.previewUrl);
-          v.img = null; // force reload via new URL
         }
       }
       refreshExportLock();
-      drawSheet();
     }else{
       state.useProxy = false;
       proxyToggle.textContent = 'Use Proxy: OFF';
+      // cannot reverse URLs safely; advise re-scan/reload if needed
       refreshExportLock();
     }
   };
 
-  // UI layout
+  // UI layout tweaks
   document.getElementById('bgColor').addEventListener('input',e=>{ const wrap=document.getElementById('canvasWrap'); wrap.style.backgroundImage='none'; wrap.style.backgroundColor=e.target.value; });
   toggleLeft.addEventListener('click',()=>{ const collapsed=bodyGrid.classList.toggle('collapsed'); leftPanel.classList.toggle('collapsed',collapsed); toggleLeft.textContent=collapsed?'▶':'◀'; });
   let scale=1; function applyZoom(){ cvs.style.width=(432*scale)+'px'; cvs.style.height=(256*scale)+'px'; }
   function fit(){ const wrap=document.getElementById('canvasWrap'); const s=Math.min((wrap.clientWidth-16)/432,(wrap.clientHeight-16)/256); scale=Math.max(0.25,Math.min(s,8)); applyZoom(); }
-  document.getElementById('zoomInOverlay').onclick=()=>{ scale=Math.min(8,scale*1.25); applyZoom(); }; document.getElementById('zoomFitOverlay').onclick=fit; window.addEventListener('resize',fit); fit();
+  zoomInBtn.onclick=()=>{ scale=Math.min(8,scale*1.25); applyZoom(); }; zoomFitBtn.onclick=fit; window.addEventListener('resize',fit); fit();
 
-  // Copy selection text
+  // copy text
   copySel.onclick=async ()=>{ try{ await navigator.clipboard.writeText(selText.textContent); copySel.textContent='Copied'; setTimeout(()=>copySel.textContent='Copy',1000);}catch{ alert('클립보드 권한이 없습니다'); }};
 
-  // Perf ticker
+  // perf ticker
   let last=performance.now(); function tick(t){ const dt=Math.round(t-last); perf.textContent=dt>50?`Busy ${dt}ms`:`Idle`; last=t; requestAnimationFrame(tick);} requestAnimationFrame(tick);
 
-  // Init
-  document.addEventListener('DOMContentLoaded', async ()=>{ highlightColor(); selectPart('face'); await drawSheet(); refreshExportLock(); });
+  // init
+  document.addEventListener('DOMContentLoaded', async ()=>{ highlightColor(); selectPart('face'); await drawSheet(); });
 })();
 </script>
 </body>
