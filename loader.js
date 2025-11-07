@@ -1,238 +1,183 @@
-// loader.js — GitHub→jsDelivr 자동 로더 + 폴백 UI (CSP-safe, no eval)
+// loader.js — jsDelivr 자동 로더 + 고정 오버레이 폴백 + 전역 호환셋
 (async function(){
-  /* ── 설정 ─────────────────────────────────────────── */
-  const USER = 'Mgpixelart';
-  const REPO = 'avatar-customize-v1';
-  const REF  = 'main';                  // 태그 쓰면 예: 'v1'
-  const PARTS = ['face','skin','hair','clothes','glass'];
-  const BASE  = `https://cdn.jsdelivr.net/gh/${USER}/${REPO}@${REF}/`;
-  const LIST  = `https://data.jsdelivr.com/v1/package/gh/${USER}/${REPO}@${REF}/flat`;
-  const ENABLE_FALLBACK_UI = true;      // 필요 없으면 false
+  const USER='Mgpixelart', REPO='avatar-customize-v1', REF='main';
+  const PARTS=['face','skin','hair','clothes','glass'];
+  const BASE=`https://cdn.jsdelivr.net/gh/${USER}/${REPO}@${REF}/`;
+  const LIST=`https://data.jsdelivr.net/v1/package/gh/${USER}/${REPO}@${REF}/flat`;
 
-  /* ── 목록 불러오기 ─────────────────────────────────── */
-  console.log('[loader] list =', LIST);
-  const r = await fetch(LIST, { cache:'no-store' });
-  if (!r.ok) { console.error('[loader] list failed', r.status, r.statusText); return; }
-  const { files } = await r.json();
-  console.log('[loader] files:', files.length);
+  const resp = await fetch(LIST, { cache:'no-store' });
+  if(!resp.ok){ console.error('[loader] list failed', resp.status, resp.statusText); return; }
+  const { files } = await resp.json();
 
-  /* ── store 준비 ───────────────────────────────────── */
-  if (!window.store) window.store = {};
-  const S = window.store;
-  S.assets ??= {};
-  S.pick   ??= {};
-  PARTS.forEach(p => (S.assets[p] ??= new Map()));
+  // store 준비
+  const S = (window.store = window.store || {});
+  S.assets = S.assets || {};
+  S.pick   = S.pick   || {};
+  PARTS.forEach(p => (S.assets[p] = S.assets[p] || new Map()));
 
-  /* ── 파일 분류 (Map: shape → {url, previewUrl, name}) ─ */
-  let added = 0;
-  for (const f of files) {
-    let path = (f.name || '').replace(/^\/+/, '');     // "/assets/..." → "assets/..."
-    if (!/\.webp$/i.test(path)) continue;
-
-    const p = PARTS.find(x => path.toLowerCase().includes(`/${x}/`));
-    if (!p) continue;
-
-    const file = path.split('/').pop() || '';
-    const m = file.match(/-?\d+/);                      // -672, 15 등
-    if (!m) continue;
-    const shape = parseInt(m[0], 10);
-
-    const url = BASE + path;
-    const isPrev = /preview/i.test(file);
-
-    let cell = S.assets[p].get(shape);
-    if (!cell) { cell = { url:null, previewUrl:null, name:file }; S.assets[p].set(shape, cell); }
-    if (isPrev) cell.previewUrl = url; else cell.url = url;
-    if (!cell.previewUrl) cell.previewUrl = cell.url;
-
+  // 분류
+  let added=0;
+  for(const f of files){
+    let path=(f.name||'').replace(/^\/+/, '');
+    if(!/\.webp$/i.test(path)) continue;
+    const lower=path.toLowerCase();
+    const part = PARTS.find(p=>lower.includes(`/${p}/`));
+    if(!part) continue;
+    const file = path.split('/').pop()||'';
+    const m = file.match(/-?\d+/); if(!m) continue;
+    const shape = parseInt(m[0],10);
+    const cell = S.assets[part].get(shape) || { url:null, previewUrl:null, name:file };
+    ( /preview/i.test(file) ? (cell.previewUrl = BASE+path) : (cell.url = BASE+path) );
+    if(!cell.previewUrl) cell.previewUrl = cell.url;
+    S.assets[part].set(shape, cell);
     added++;
   }
-
   console.log('[loader] grouped =',
-    Object.fromEntries(PARTS.map(p => [p, S.assets[p].size])),
-    'added =', added
-  );
+    Object.fromEntries(PARTS.map(p=>[p, S.assets[p].size])), 'added =', added);
 
-  /* ── 호환 계층 (배열/객체 별칭 제공) ────────────────── */
-  __compatExpose(PARTS);
-
-  /* ── 초기 선택값 ───────────────────────────────────── */
-  for (const p of PARTS) {
-    if (S.pick[p] != null) continue;
-    const keys = [...S.assets[p].keys()].sort((a,b)=>a-b);
-    if (keys.length) S.pick[p] = keys[0];
-  }
-
-  /* ── 색 버킷(있을 때만) ───────────────────────────── */
-  if (typeof window.colorIdxFromShape === 'function') {
-    if (S.pick.hair != null) S.color = window.colorIdxFromShape(S.pick.hair);
-    else if (S.pick.clothes != null) S.color = window.colorIdxFromShape(S.pick.clothes);
-  }
-
-  /* ── 기존 렌더 플로우 지원(있을 때만) ─────────────── */
-  if (typeof window.selectPart === 'function') {
-    const firstPart = PARTS.find(p => S.assets[p]?.size > 0) || 'face';
-    window.selectPart(firstPart);
-  }
-  if (typeof window.drawSheet === 'function') await window.drawSheet();
-  if (typeof window.buildGrid === 'function') window.buildGrid();
-
-  /* ── 준비 완료 이벤트 ─────────────────────────────── */
-  window.dispatchEvent(new CustomEvent('assets-ready', { detail:{ parts: PARTS } }));
-
-  /* ── 폴백 UI(선택) ─────────────────────────────────── */
-  if (ENABLE_FALLBACK_UI) attachFallbackUI(PARTS);
-})();
-
-/* ===== 호환 계층: Map → Array/Object + 별칭 ===== */
-function __compatExpose(parts){
-  const S = window.store;
-  S.assetsArray = Object.fromEntries(parts.map(p=>{
-    const arr = [...(S.assets[p]||new Map()).entries()]
+  // ===== 전역 호환 셋 (무엇을 읽든 대응) =====
+  // Map → Array
+  S.assetsArray = Object.fromEntries(PARTS.map(p=>{
+    const arr=[...(S.assets[p]||new Map()).entries()]
       .sort((a,b)=>a[0]-b[0])
-      .map(([shape, cell])=>({ shape,
-        url: cell?.url || null,
-        previewUrl: cell?.previewUrl || cell?.url || null,
-        name: cell?.name || String(shape)
-      }));
+      .map(([shape,cell])=>({shape, url:cell.url||null, previewUrl:cell.previewUrl||cell.url||null, name:cell.name||String(shape)}));
     return [p, arr];
   }));
-  S.assetsPlain = Object.fromEntries(parts.map(p=>{
-    const obj = {};
-    for (const [shape, cell] of (S.assets[p]||new Map()).entries()){
-      obj[shape] = {
-        url: cell?.url || null,
-        previewUrl: cell?.previewUrl || cell?.url || null,
-        name: cell?.name || String(shape)
-      };
+  // Map → Plain Object
+  S.assetsPlain = Object.fromEntries(PARTS.map(p=>{
+    const obj={};
+    for(const [shape,cell] of (S.assets[p]||new Map()).entries()){
+      obj[shape]={ url:cell.url||null, previewUrl:cell.previewUrl||cell.url||null, name:cell.name||String(shape) };
     }
-    return [p, obj];
+    return [p,obj];
   }));
+  // 레거시 별칭(많이 쓰는 키들 전부 깔아줌)
   S.list  = S.list  || S.assetsArray;
   S.items = S.items || S.assetsArray;
   S.data  = S.data  || S.assetsPlain;
-}
+  S.manifest = S.manifest || Object.fromEntries(PARTS.map(p=>[p, S.assetsArray[p]]));
 
-/* ===== 폴백 UI: 캔버스 합성 + 썸네일 그리드 ===== */
-function attachFallbackUI(order){
+  // 선택값 기본
+  for(const p of PARTS){
+    if(S.pick[p]!=null) continue;
+    const first=[...S.assets[p].keys()].sort((a,b)=>a-b)[0];
+    if(first!=null) S.pick[p]=first;
+  }
+
+  // 기존 함수가 있다면 호출
+  if(typeof window.selectPart==='function'){
+    const first=PARTS.find(p=>S.assets[p]?.size>0) || 'face';
+    window.selectPart(first);
+  }
+  if(typeof window.drawSheet==='function'){ try{ await window.drawSheet(); }catch{} }
+  if(typeof window.buildGrid==='function'){ try{ window.buildGrid(); }catch{} }
+
+  // 준비 이벤트
+  window.dispatchEvent(new CustomEvent('assets-ready', { detail:{parts:PARTS} }));
+
+  // ======== 고정 오버레이 폴백 UI (화면에 무조건 보이게) ========
+  attachOverlayFallback(PARTS);
+})();
+
+// 고정 오버레이
+function attachOverlayFallback(order){
   const S = window.store;
+  const avail = order.filter(p=>S.assets[p] && S.assets[p].size>0);
+  if(!avail.length) return;
 
-  const available = order.filter(p => S.assets[p] && S.assets[p].size>0);
-  if (!available.length) { console.warn('[fallback] no assets'); return; }
-
-  // 캔버스
-  let c = document.getElementById('autoCanvas');
-  if (!c) {
-    c = document.createElement('canvas');
-    c.id = 'autoCanvas';
-    c.width = 64; c.height = 64;
-    Object.assign(c.style, {
-      imageRendering:'pixelated', width:'256px', height:'256px',
-      border:'1px solid #ddd', background:'#f8f8f8', display:'block', margin:'12px 0'
+  // 오버레이 컨테이너
+  let wrap=document.getElementById('autoOverlay');
+  if(!wrap){
+    wrap=document.createElement('div');
+    wrap.id='autoOverlay';
+    Object.assign(wrap.style,{
+      position:'fixed', right:'12px', bottom:'12px', zIndex:999999,
+      width:'360px', maxHeight:'70vh', background:'rgba(20,22,28,.98)',
+      color:'#eee', border:'1px solid #333', borderRadius:'10px',
+      boxShadow:'0 6px 24px rgba(0,0,0,.35)', overflow:'hidden', font:'12px system-ui,sans-serif'
     });
-    document.body.appendChild(c);
+    wrap.innerHTML=
+      '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#14161c;border-bottom:1px solid #2a2d36">' +
+      '<strong style="font-weight:600;">Assets</strong>' +
+      '<span id="ovStatus" style="opacity:.7"></span>' +
+      '<button id="ovClose" style="margin-left:auto;background:#222;color:#ddd;border:1px solid #444;border-radius:6px;padding:4px 8px;cursor:pointer">Hide</button>' +
+      '</div>' +
+      '<canvas id="ovCanvas" width="64" height="64" style="image-rendering:pixelated;width:128px;height:128px;border:1px solid #2a2d36;background:#0f1117;margin:10px"></canvas>' +
+      '<div id="ovTabs" style="display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 6px"></div>' +
+      '<div id="ovGrid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:8px;overflow:auto;max-height:40vh"></div>';
+    document.body.appendChild(wrap);
+    document.getElementById('ovClose').onclick=()=>{ wrap.style.display='none'; };
   }
-  const ctx = c.getContext('2d', { willReadFrequently:true });
-  ctx.imageSmoothingEnabled = false;
 
-  // 패널
-  let panel = document.getElementById('autoPanel');
-  if (!panel) {
-    panel = document.createElement('div');
-    panel.id = 'autoPanel';
-    panel.innerHTML = `
-      <div style="font:14px system-ui,sans-serif;padding:8px;border-top:1px solid #eee">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
-          <strong>Auto Loader</strong>
-          <span id="autoStatus" style="opacity:.7"></span>
-        </div>
-        <div class="row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
-          <div id="autoParts" style="display:flex;gap:6px"></div>
-        </div>
-        <div id="autoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;max-height:220px;overflow:auto;border:1px solid #eee;padding:6px"></div>
-      </div>`;
-    document.body.appendChild(panel);
-  }
-  const elParts  = document.getElementById('autoParts');
-  const elGrid   = document.getElementById('autoGrid');
-  const elStatus = document.getElementById('autoStatus');
+  const ctx=document.getElementById('ovCanvas').getContext('2d',{willReadFrequently:true});
+  ctx.imageSmoothingEnabled=false;
+  const ovStatus=document.getElementById('ovStatus');
+  const ovTabs=document.getElementById('ovTabs');
+  const ovGrid=document.getElementById('ovGrid');
 
-  // pick 기본값
-  S.pick ??= {};
-  for (const p of available) {
-    if (S.pick[p] == null) {
-      const first = [...S.assets[p].keys()].sort((a,b)=>a-b)[0];
-      S.pick[p] = first;
+  ovStatus.textContent=' ' + JSON.stringify(Object.fromEntries(order.map(p=>[p,S.assets[p]?.size||0])));
+
+  S.pick ||= {};
+  for(const p of avail){
+    if(S.pick[p]==null){
+      const first=[...S.assets[p].keys()].sort((a,b)=>a-b)[0];
+      S.pick[p]=first;
     }
   }
 
-  // 상태
-  (function(){
-    const counts = Object.fromEntries(order.map(p => [p, S.assets[p]?.size||0]));
-    elStatus.textContent = ' — loaded: ' + JSON.stringify(counts);
-    console.log('[fallback] counts', counts);
-  })();
-
-  // 이미지 로더
-  function loadImg(src){
-    return new Promise((ok, err)=>{
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = ()=>ok(img);
-      img.onerror = (e)=>{ console.error('[img error]', src, e); err(e); };
-      img.src = src;
+  function btn(label,active){
+    const b=document.createElement('button');
+    b.textContent=label;
+    Object.assign(b.style,{
+      padding:'4px 8px', border:'1px solid #3a3f4a', borderRadius:'6px',
+      background: active ? '#3a6ff0' : '#1b1f2a', color: active ? '#fff' : '#cdd3e0',
+      cursor:'pointer'
     });
+    return b;
   }
 
-  async function renderCompose(){
-    ctx.clearRect(0,0,c.width,c.height);
-    for (const p of order) {
-      const map = S.assets[p];
-      const shape = S.pick[p];
-      if (!map || shape==null) continue;
-      const cell = map.get(shape);
-      const url = cell?.url || cell?.previewUrl;
-      if (!url) continue;
-      try{
-        const img = await loadImg(url);
-        ctx.drawImage(img, 0, 0, c.width, c.height);
-      }catch(e){}
-    }
-  }
-
-  // 탭
-  let current = available[0];
+  let cur=avail[0];
   function drawTabs(){
-    elParts.innerHTML = '';
-    for (const p of available) {
-      const b = document.createElement('button');
-      b.textContent = `${p} (${S.assets[p].size})`;
-      b.style.cssText='padding:6px 10px;border:1px solid #ddd;background:#fafafa;cursor:pointer';
-      if (p===current){ b.style.background='#222'; b.style.color='#fff'; }
-      b.onclick = ()=>{ current = p; drawTabs(); drawGrid(); };
-      elParts.appendChild(b);
+    ovTabs.innerHTML='';
+    for(const p of avail){
+      const b=btn(`${p} (${S.assets[p].size})`, p===cur);
+      b.onclick=()=>{ cur=p; drawTabs(); drawGrid(); };
+      ovTabs.appendChild(b);
     }
   }
 
-  // 그리드
   function drawGrid(){
-    elGrid.innerHTML = '';
-    const entries = [...S.assets[current].entries()].sort((a,b)=>a[0]-b[0]);
-    for (const [shape, cell] of entries) {
-      const box = document.createElement('div');
-      box.style.cssText='border:1px solid #ddd;background:#fff;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;cursor:pointer';
-      const img = document.createElement('img');
-      img.src = cell.previewUrl || cell.url;
-      img.alt = `${current}:${shape}`;
-      img.style.cssText='image-rendering:pixelated;width:100%;height:100%;object-fit:contain';
-      box.title = `${current}:${shape}`;
-      box.onclick = async ()=>{ S.pick[current] = shape; await renderCompose(); };
-      box.appendChild(img);
-      elGrid.appendChild(box);
+    ovGrid.innerHTML='';
+    const entries=[...S.assets[cur].entries()].sort((a,b)=>a[0]-b[0]);
+    for(const [shape,cell] of entries){
+      const box=document.createElement('div');
+      Object.assign(box.style,{border:'1px solid #2a2d36',background:'#0f1117',aspectRatio:'1/1',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',borderRadius:'6px'});
+      const img=document.createElement('img');
+      img.src=cell.previewUrl||cell.url; img.alt=`${cur}:${shape}`;
+      Object.assign(img.style,{imageRendering:'pixelated',width:'100%',height:'100%',objectFit:'contain'});
+      box.title=`${cur}:${shape}`;
+      box.onclick=async()=>{ S.pick[cur]=shape; await render(); };
+      box.appendChild(img); ovGrid.appendChild(box);
     }
   }
 
-  drawTabs();
-  drawGrid();
-  renderCompose().catch(console.error);
+  function loadImg(src){
+    return new Promise((ok,err)=>{
+      const im=new Image(); im.crossOrigin='anonymous';
+      im.onload=()=>ok(im); im.onerror=(e)=>{ console.error('[img error]',src,e); err(e); };
+      im.src=src;
+    });
+  }
+
+  async function render(){
+    ctx.clearRect(0,0,64,64);
+    for(const p of order){
+      const map=S.assets[p]; const sh=S.pick[p];
+      if(!map || sh==null) continue;
+      const cell=map.get(sh); const url=cell?.url||cell?.previewUrl; if(!url) continue;
+      try{ const im=await loadImg(url); ctx.drawImage(im,0,0,64,64); }catch{}
+    }
+  }
+
+  drawTabs(); drawGrid(); render();
 }
