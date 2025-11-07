@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Avatar Customizer — CORS-safe + CDN Scanner + Known IDs + Fixed Delete</title>
+<title>Avatar Customizer — CORS-safe + CDN Scanner + Fixed Delete</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box}
@@ -20,9 +20,8 @@ body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD
 .btn{background:#18223a;border:1px solid #243152;color:#e8ecf1;border-radius:8px;padding:4px 8px;font-size:.85rem;cursor:pointer}
 .btn:disabled{opacity:.5;cursor:default}
 select{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:4px 8px}
-input[type="text"],input[type="search"],input[type="number"],input[type="color"]{background:#0f1424;color:#e8ecf1;border:1px solid #243152;border-radius:8px;padding:4px 8px}
-.pill{font-size:.78rem;color:#9ac3ff}
 input[type="file"]{display:none}
+.pill{font-size:.78rem;color:#9ac3ff}
 /* BODY GRID */
 .body{height:100%;display:grid;grid-template-columns:var(--leftW) 1fr 6px var(--rightW);gap:8px;padding:8px;min-height:0}
 .body.collapsed{grid-template-columns:var(--leftWCollapsed) 1fr 6px var(--rightW)}
@@ -41,7 +40,7 @@ input[type="file"]{display:none}
 .collapsed .name{display:none}
 .collapsed .tab .iconPart{display:block; text-align:center; font-size:14px}
 .collapsed .leftHead{justify-content:center}
-#toggleLeft{font-size:10px; padding:2px 4px}
+#toggleLeft{font-size:10px;padding:2px 4px}
 /* MID */
 .mid{background:#121621;border:1px solid #1d2538;border-radius:12px;display:grid;grid-template-rows:auto 1fr;min-height:0}
 .colors{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-bottom:1px solid #1d2538}
@@ -65,16 +64,13 @@ input[type="file"]{display:none}
 /* RIGHT */
 .right{background:#121621;border:1px solid #1d2538;border-radius:12px;display:grid;grid-template-rows:1fr;min-width:320px;min-height:0}
 .stage{display:grid;grid-template-rows:auto 1fr;min-height:0}
-.framebar{display:flex;flex-direction:column;gap:4px;padding:8px;border-bottom:1px solid #1d2538;background:#10182a}
-.framebar-top{display:flex;gap:6px;align-items:center;justify-content:space-between}
-.framebar-bottom{display:flex;gap:4px;align-items:center;justify-content:flex-start}
-.zoom-controls{display:flex;gap:4px;align-items:center}
-.export-controls{display:flex;gap:4px;align-items:center}
+.framebar{display:flex;flex-direction:column;gap:6px;padding:8px;border-bottom:1px solid #1d2538;background:#10182a;overflow-x:auto}
+.framebar-top{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;row-gap:8px}
+.zoom-controls,.export-controls{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .view{display:grid;place-items:center;padding:8px;min-height:0}
 .canvasWrap{display:block;overflow:auto;border-radius:12px;border:1px solid #203055;max-width:100%;max-height:100%;width:100%;height:100%;background:#0b0d12;cursor:default;position:relative}
 #sheet{image-rendering:pixelated;display:block}
 #frameLabel{margin-left:8px;padding:2px 8px;border-radius:12px;background:#223;color:#cfe;font-size:12px}
-.zoom-controls-overlay{position:absolute;bottom:8px;right:8px;display:flex;gap:2px;background:rgba(16,24,42,0.9);border-radius:6px;padding:4px;border:1px solid #243152}
 .zoom-controls-overlay .btn{padding:2px 6px;font-size:11px;min-width:24px;height:24px}
 /* BG picker bottom-left */
 .bg-color-overlay{position:absolute;bottom:8px;left:8px;background:rgba(16,24,42,0.9);padding:4px 6px;border-radius:6px;border:1px solid #243152;display:flex;gap:6px;align-items:center}
@@ -101,24 +97,11 @@ input[type="file"]{display:none}
     <div class="actions">
       <span class="pill" id="perf">Idle</span>
       <span class="pill" id="corsState">—</span>
-
       <label class="btn" for="inZip">Open ZIP</label><input id="inZip" type="file" accept="application/zip">
       <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*">
       <input id="inFiles" type="file" accept="image/*" multiple style="display:none">
-
       <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
-      <button class="btn" id="scanCdn" type="button" title="ZEP CDN을 자동 스캔해 존재하는 번호만 등록">CDN Auto-Scan</button>
-
-      <!-- 초고속: 확정 번호만 추가 -->
-      <select id="knownPart" title="파트 선택">
-        <option value="face">face</option>
-        <option value="skin">skin</option>
-        <option value="hair">hair</option>
-        <option value="clothes">clothes</option>
-        <option value="glass">glass</option>
-      </select>
-      <input id="knownIds" type="text" placeholder="-1,-13,-25…" style="width:170px" title="쉼표로 구분된 번호 목록">
-      <button class="btn" id="addKnown" type="button" title="입력한 번호만 추가(존재 확인 최소 요청)">Add IDs</button>
+      <button class="btn" id="scanCdn" type="button" title="ZEP CDN 자동 스캔">CDN Auto-Scan</button>
     </div>
   </div>
 
@@ -145,7 +128,6 @@ input[type="file"]{display:none}
               <span class="pill">프레임 <span id="frameLabel">-</span></span>
             </div>
             <div class="zoom-controls">
-              <button class="btn" id="zoomOutOverlay" title="축소">−</button>
               <button class="btn" id="zoomInOverlay" title="확대">＋</button>
               <button class="btn" id="zoomFitOverlay" title="화면에 맞춤">Fit</button>
             </div>
@@ -194,14 +176,13 @@ input[type="file"]{display:none}
   const COLORABLE = new Set(['hair','clothes']);
   const COLOR_HEX = ['#111111','#8b8b99','#e58a2b','#f2c94c','#3772ff','#7ed0ff','#8b5e34','#9b59b6','#ff66b3','#eaeaea','#ff3b30','#2ecc71'];
   const BALD_MIN=-144, BALD_MAX=-133;
-
   const ZEP_BASE = 'https://cdn-static.zep.us/static/assets/sprites';
   const SCAN_DEFAULTS = {
-    face:   {start:-1, end:-300, step:-1, consecStop:40},
-    skin:   {start:-1, end:-120, step:-1, consecStop:40},
-    hair:   {start:-1, end:-1200, step:-1, consecStop:40},
-    clothes:{start:-1, end:-1200, step:-1, consecStop:40},
-    glass:  {start:-1, end:-400, step:-1, consecStop:40}
+    face:{start:-1,end:-300,step:-1,consecStop:40},
+    skin:{start:-1,end:-120,step:-1,consecStop:40},
+    hair:{start:-1,end:-1200,step:-1,consecStop:40},
+    clothes:{start:-1,end:-1200,step:-1,consecStop:40},
+    glass:{start:-1,end:-400,step:-1,consecStop:40}
   };
 
   /* ===== DOM ===== */
@@ -224,7 +205,6 @@ input[type="file"]{display:none}
   const selText = document.getElementById('selText');
   const copySel = document.getElementById('copySel');
   const zoomInBtn = document.getElementById('zoomInOverlay');
-  const zoomOutBtn = document.getElementById('zoomOutOverlay');
   const zoomFitBtn = document.getElementById('zoomFitOverlay');
   const frameLabel = document.getElementById('frameLabel');
   const saveWebpBtn = document.getElementById('saveWebp');
@@ -232,9 +212,6 @@ input[type="file"]{display:none}
   const saveAllZipBtn = document.getElementById('saveAllZip');
   const exportFramesBtn = document.getElementById('exportFrames');
   const scanCdnBtn = document.getElementById('scanCdn');
-  const knownPartSel = document.getElementById('knownPart');
-  const knownIdsInput = document.getElementById('knownIds');
-  const addKnownBtn = document.getElementById('addKnown');
 
   /* ===== STORE ===== */
   const store = window.store = {
@@ -281,7 +258,7 @@ input[type="file"]{display:none}
         const u = cell?.imgSrcSafe || cell?.url || '';
         if (!u) continue;
         if (isBlobOrData(u) || sameOrigin(u)) continue;
-        return {ok:false, reason:`외부 리소스(${p} #${shape})는 CORS 허용이 없어 저장/복사 불가. 폴더/ZIP로 로드하거나 프록시 사용.`};
+        return {ok:false, reason:`외부 리소스(${p} #${shape}) 때문에 저장/복사 불가. ZIP/폴더로 불러오거나 프록시 사용.`};
       }
     }
     return {ok:true};
@@ -311,7 +288,7 @@ input[type="file"]{display:none}
     });
   }
 
-  // 외부 URL → 가능하면 fetch로 blob 전환(안전), 실패 시 원본 그대로(비안전)
+  // 외부 URL → 가능한 경우 fetch→blob 변환(안전), 실패 시 원본 유지(비안전)
   async function normalizeUrlForCanvas(u){
     try{
       const abs = new URL(u, location.href).href;
@@ -361,7 +338,7 @@ input[type="file"]{display:none}
     tablist.appendChild(tab);
   });
 
-  /* ===== MID: Colors Bar ===== */
+  /* ===== MID: Colors ===== */
   const colorDots=[];
   COLOR_HEX.forEach((hex,i)=>{
     const d=document.createElement('div');
@@ -372,9 +349,7 @@ input[type="file"]{display:none}
     colorBar.appendChild(d);
     colorDots.push(d);
   });
-  function highlightColor(){
-    colorDots.forEach((el,i)=> el.classList.toggle('active', i===store.color));
-  }
+  function highlightColor(){ colorDots.forEach((el,i)=> el.classList.toggle('active', i===store.color)); }
 
   /* ===== GRID ===== */
   function clearGridSelection(){
@@ -484,7 +459,7 @@ input[type="file"]{display:none}
     buildGrid();
   }
 
-  /* ===== EXPORT HELPERS ===== */
+  /* ===== EXPORT ===== */
   window.fileBase = function fileBase(){
     const t = selText.textContent || '';
     const face = t.match(/face:\s*([\-\d]+)/i);
@@ -519,6 +494,12 @@ input[type="file"]{display:none}
       return await fn();
     }
   }
+
+  // 우클릭 프레임 복사(안전할 때만)
+  (function initContextCopy(){
+    const cvsEl = cvs;
+    cvsEl.addEventListener('contextmenu', (e)=>{ /* handled in overlay init after selection */ });
+  })();
 
   /* ===== STATUS / COPY TEXT ===== */
   function updateSelText(){
@@ -665,10 +646,11 @@ input[type="file"]{display:none}
   });
 
   let scale=1;
-  function applyZoom(){ cvs.style.width = (432*scale)+'px'; cvs.style.height = (256*scale)+'px'; }
-  function fit(){ const wrap=canvasWrap; const s = Math.min((wrap.clientWidth-16)/432, (wrap.clientHeight-16)/256); scale=Math.max(0.25, Math.min(s, 8)); applyZoom(); }
-  zoomInBtn.addEventListener('click', ()=>{ scale=Math.min(8, scale*1.25); applyZoom(); });
-  zoomOutBtn.addEventListener('click', ()=>{ scale=Math.max(0.25, scale/1.25); applyZoom(); });
+  function applyZoom(){ cvs.style.width=(432*scale)+'px'; cvs.style.height=(256*scale)+'px'; }
+  function fit(){ const wrap=canvasWrap; const s=Math.min((wrap.clientWidth-16)/432,(wrap.clientHeight-16)/256); scale=Math.max(0.25,Math.min(s,8)); applyZoom(); }
+  function zoomIn(){ scale=Math.min(8, scale*1.25); applyZoom(); }
+  function zoomOut(){ scale=Math.max(0.25, scale/1.25); applyZoom(); }
+  zoomInBtn.addEventListener('click', zoomIn);
   zoomFitBtn.addEventListener('click', fit);
   window.addEventListener('resize', fit); fit();
 
@@ -676,7 +658,8 @@ input[type="file"]{display:none}
   canvasWrap.addEventListener('mousedown', (e)=>{ if(e.button!==0) return; panning=true; sx=e.clientX; sy=e.clientY; sl=canvasWrap.scrollLeft; st=canvasWrap.scrollTop; canvasWrap.style.cursor='grabbing'; e.preventDefault(); });
   window.addEventListener('mouseup', ()=>{ if(panning){ panning=false; canvasWrap.style.cursor='default'; } suppressNextClick = true; setTimeout(()=>suppressNextClick=false,0); });
   window.addEventListener('mousemove', (e)=>{ if(!panning) return; canvasWrap.scrollLeft = sl - (e.clientX - sx); canvasWrap.scrollTop = st - (e.clientY - sy); });
-  canvasWrap.addEventListener("wheel", function(e) { e.preventDefault(); if (e.deltaY < 0) zoomInBtn.click(); else zoomOutBtn.click(); }, { passive: false });
+  // 휠로 확대/축소
+  canvasWrap.addEventListener('wheel', (e)=>{ e.preventDefault(); if (e.deltaY < 0) zoomIn(); else zoomOut(); }, {passive:false});
 
   // splitter
   (function splitter(){
@@ -691,7 +674,7 @@ input[type="file"]{display:none}
   function tick(t){ const dt=Math.round(t-last); perf.textContent = dt>50?`Busy ${dt}ms`:`Idle`; last=t; rafId=requestAnimationFrame(tick); }
   rafId=requestAnimationFrame(tick);
 
-  /* ===== FRAME OVERLAY / COPY / EXPORT ===== */
+  /* ===== FRAME OVERLAY / COPY / EXPORT / DELETE ===== */
   (function initOverlay(){
     const wrap = document.getElementById('canvasWrap');
     let overlay = document.getElementById('sheetOverlay');
@@ -765,14 +748,10 @@ input[type="file"]{display:none}
     document.addEventListener('click', (e)=>{ if (!cvs.contains(e.target) && !e.target.closest('.canvasWrap')) { if (state.selected.size > 0) { state.selected.clear(); state.anchor = null; state.dirty = true; } } });
     canvasWrap.addEventListener('click', (e)=>{ if (!cvs.contains(e.target)) { if (state.selected.size > 0) { state.selected.clear(); state.anchor = null; state.dirty = true; } } });
 
-    document.addEventListener('keydown', (e)=>{
-      if (e.key === 'Escape') { if (state.selected.size > 0) { state.selected.clear(); state.anchor = null; state.dirty = true; } }
-    });
-
-    // 우클릭 복사(HTTPS 필요, 안전할 때만)
+    // 우클릭 복사(안전할 때만)
     cvs.addEventListener('contextmenu', async (e)=>{
       if (state.selected.size === 0) return;
-      if (store.exportLocked){ toast(store.lockReason||'외부 리소스로 복사 불가'); e.preventDefault(); return; }
+      if (store.exportLocked){ e.preventDefault(); toast(store.lockReason||'외부 리소스로 복사 불가'); return; }
       e.preventDefault();
       const list = [...state.selected].sort((a,b)=>a-b);
       const oc = document.createElement('canvas'); oc.width = 48 * list.length; oc.height = 64;
@@ -813,7 +792,6 @@ input[type="file"]{display:none}
     }, {capture:true});
 
     cvs.addEventListener('click', (e)=>{
-      if (suppressNextClick) { return; }
       if (state.dragging) return;
       const rect = cvs.getBoundingClientRect();
       if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
@@ -834,12 +812,11 @@ input[type="file"]{display:none}
       state.dirty=true;
     });
 
-    // ===== Delete / Undo (고정) =====
+    // Delete / Undo / Select All
     document.addEventListener('keydown', (e)=>{
       const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
       if (tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT' || (e.target && e.target.isContentEditable)) return;
 
-      // 전체 선택
       if ((e.ctrlKey || e.metaKey) && (e.key==='a' || e.key==='A')){
         e.preventDefault();
         const vis = store._visibleShapes || [];
@@ -851,7 +828,6 @@ input[type="file"]{display:none}
         return;
       }
 
-      // Undo
       if ((e.ctrlKey || e.metaKey) && (e.key==='z' || e.key==='Z')){
         e.preventDefault();
         const op = (window.__HIST && window.__HIST.stack.length) ? window.__HIST.stack.pop() : null;
@@ -869,7 +845,6 @@ input[type="file"]{display:none}
         return;
       }
 
-      // Delete / Backspace
       if (!(e.key==='Delete' || e.key==='Backspace')) return;
 
       const part = store.selPart;
@@ -877,9 +852,7 @@ input[type="file"]{display:none}
       if (!map) return;
 
       let targets = new Set(store.selectedShapes);
-      if (targets.size===0 && store.pick[part]!=null){
-        targets.add(store.pick[part]);
-      }
+      if (targets.size===0 && store.pick[part]!=null){ targets.add(store.pick[part]); }
       if (targets.size===0) return;
 
       e.preventDefault();
@@ -988,59 +961,8 @@ input[type="file"]{display:none}
     updateAllRandEnabled();
     refreshExportLock();
     scanCdnBtn.disabled = false;
-    toast(`CDN 스캔 완료: ${total}개`);
-  });
-
-  /* ===== Known IDs quick add ===== */
-  function parseIds(str){
-    if (!str) return [];
-    return str.split(/[,，\s]+/).map(s=>parseInt(s,10)).filter(n=>Number.isInteger(n));
-  }
-  async function addKnownIds(part, ids){
-    const map = store.assets[part];
-    let added = 0;
-    for (const n of ids){
-      const base = `${ZEP_BASE}/${part}/${n}`;
-      const full = `${base}.png`;
-      const prev = `${base}_preview.png`;
-      let ok = false;
-      try{
-        const r = await fetch(full, {mode:'cors', credentials:'omit'});
-        ok = r.ok;
-      }catch(_){ ok = false; }
-      if (!ok) continue;
-
-      const cell = map.get(n) || {url:null, previewUrl:null, name:`${part}_${n}.png`};
-      cell.url = full;
-      try{
-        const rp = await fetch(prev, {mode:'cors', credentials:'omit'});
-        cell.previewUrl = rp.ok ? prev : full;
-      }catch{ cell.previewUrl = full; }
-      const norm = await normalizeUrlForCanvas(cell.url);
-      cell.imgSrcSafe = norm.url; cell.imgRevoke = norm.revoke||false;
-      map.set(n, cell);
-      added++;
-    }
-    if (store.pick[part]==null){
-      const keys=[...map.keys()].sort((a,b)=>a-b);
-      if (keys.length) store.pick[part] = keys[0];
-    }
-    if (store.pick.hair!=null) store.color = colorIdxFromShape(store.pick.hair);
-    else if (store.pick.clothes!=null) store.color = colorIdxFromShape(store.pick.clothes);
-
-    selectPart(store.selPart || part);
-    await drawSheet();
-    updateAllRandEnabled();
-    refreshExportLock();
-    toast(`Added ${added}/${ids.length} for ${part}`);
-  }
-  addKnownBtn.addEventListener('click', async ()=>{
-    const part = knownPartSel.value;
-    const ids = parseIds(knownIdsInput.value);
-    if (!ids.length){ toast('번호를 입력하세요'); return; }
-    addKnownBtn.disabled = true;
-    await addKnownIds(part, ids);
-    addKnownBtn.disabled = false;
+    const msg = total ? `CDN 스캔 완료: ${total}개` : `CDN에서 찾은 리소스 없음`;
+    (function(m){ const el=document.createElement('div'); el.textContent=m; el.style.position='fixed'; el.style.top='10px'; el.style.left='50%'; el.style.transform='translateX(-50%)'; el.style.background='rgba(18,22,33,.95)'; el.style.border='1px solid #2a3656'; el.style.padding='6px 10px'; el.style.borderRadius='10px'; el.style.zIndex='9999'; el.style.fontSize='12px'; document.body.appendChild(el); setTimeout(()=>el.remove(),1500); })(msg);
   });
 
   /* ===== BOOT ===== */
