@@ -1265,15 +1265,13 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
 <script>
-/* ========== GitHub 리소스 자동 로더 (manifest 불필요) ========== */
-/* - 목록: jsDelivr Data API
+/* =========================
+   1) GitHub 자동 로더 (확정판)
+   - 목록: jsDelivr Data API
    - 이미지: jsDelivr CDN
-   - 카테고리: 폴더명(face/skin/hair/clothes/glass)
-   - 프리뷰: 파일명에 "preview" 포함 시 previewUrl로 등록
-   - 색 슬롯: 파일명 숫자(음수/정수, 예 -672) → shape로 사용
+   - 완료 시 window.dispatchEvent(new CustomEvent('assets-ready'))
    - CSP: eval/new Function 사용 안 함
-*/
-
+========================= */
 async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
   const listURL = `https://data.jsdelivr.com/v1/package/gh/${user}/${repo}@${ref}/flat`;
   console.log('[auto-loader] listURL =', listURL);
@@ -1295,19 +1293,15 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
   // 파일 → store.assets[part]: Map(shape → {url,previewUrl,name})
   let added = 0;
   for (const f of files) {
-    let path = f.name;                          // 예: "/assets/clothes/-1.webp"
+    let path = f.name;                          // ex: "/assets/clothes/-1.webp"
     if (!/\.webp$/i.test(path)) continue;
-
-    // 선두 슬래시 제거
-    path = path.replace(/^\/+/, '');            // "assets/clothes/-1.webp"
-
-    // 파트 판별: 어디에 있든 "/{part}/" 포함되면 인정
+    path = path.replace(/^\/+/, '');            // strip leading "/"
     const lower = path.toLowerCase();
     const part = parts.find(p => lower.includes(`/${p}/`));
     if (!part) continue;
 
     const file = path.split('/').pop() || '';
-    const m = file.match(/-?\d+/);              // 음수/정수 shape
+    const m = file.match(/-?\d+/);
     if (!m) continue;
     const shape = parseInt(m[0], 10);
 
@@ -1322,8 +1316,10 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
 
     added++;
   }
+
   console.log('[auto-loader] grouped assets ->',
     Object.fromEntries(parts.map(p => [p, store.assets[p].size])));
+  console.log('[auto-loader] done. added entries =', added);
 
   // 호환 계층: Map → Array / Plain Object (레거시 UI 대비)
   __ensureCompatibility(parts);
@@ -1335,9 +1331,9 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
     if (keys.length) store.pick[p] = keys[0];
   }
 
-  // 실제로 데이터가 있는 파트 중 첫 번째로 전환
-  const firstPart = parts.find(p => store.assets[p]?.size > 0) || 'face';
-  if (typeof selectPart === 'function') selectPart(firstPart);
+  // 실제로 데이터가 있는 파트 중 첫 번째로 전환 (있다면)
+  const firstPart = parts.find(p => store.assets[p]?.size > 0) || null;
+  if (firstPart && typeof selectPart === 'function') selectPart(firstPart);
 
   // 색 버킷(기존 함수 재사용)
   if (typeof colorIdxFromShape === 'function') {
@@ -1345,14 +1341,15 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
     else if (store.pick.clothes != null) store.color = colorIdxFromShape(store.pick.clothes);
   }
 
-  // 렌더 플로우
+  // 기존 렌더 시도 (있으면 사용)
   if (typeof drawSheet === 'function') await drawSheet();
   if (typeof buildGrid === 'function') buildGrid();
 
-  console.log('[auto-loader] done. added entries =', added);
+  // ✅ 완전 준비됨 이벤트
+  window.dispatchEvent(new CustomEvent('assets-ready', { detail: { parts } }));
 }
 
-// Map → Array/Object 변환 + 별칭 노출 (UI 호환)
+// 호환 계층
 function __ensureCompatibility(parts){
   if (!window.store || !store.assets) return;
 
@@ -1393,13 +1390,162 @@ function __ensureCompatibility(parts){
   } catch(e){}
 }
 
-// 즉시 실행 (배포 안정화 후 ref는 태그 예: 'v1' 권장)
+/* =========================
+   2) Fallback 렌더러 (확정판)
+   - assets-ready 이벤트를 “반드시” 기다렸다가 실행
+   - 이미지 로딩 실패도 콘솔에 표시
+========================= */
+(function attachFallbackRenderer(){
+  window.addEventListener('assets-ready', async (ev)=>{
+    const partsOrder = ['skin','clothes','face','hair','glass'];
+
+    // 캔버스 보장
+    let canvas = document.getElementById('autoCanvas');
+    if(!canvas){
+      canvas = document.createElement('canvas');
+      canvas.id = 'autoCanvas';
+      canvas.width = 64;
+      canvas.height = 64;
+      canvas.style.imageRendering = 'pixelated';
+      canvas.style.width = '256px';
+      canvas.style.height = '256px';
+      canvas.style.border = '1px solid #ddd';
+      canvas.style.background = '#f8f8f8';
+      document.body.appendChild(canvas);
+    }
+    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    ctx.imageSmoothingEnabled = false;
+
+    // 패널 보장
+    let panel = document.getElementById('autoPanel');
+    if(!panel){
+      panel = document.createElement('div');
+      panel.id = 'autoPanel';
+      panel.style.cssText = 'font:14px system-ui,sans-serif;padding:8px;border-top:1px solid #eee';
+      panel.innerHTML = `
+        <div class="row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
+          <strong>Auto Loader Fallback</strong>
+          <span id="autoStatus" style="opacity:.7"></span>
+          <button id="autoReload" style="margin-left:auto;padding:6px 10px;border:1px solid #ddd;background:#fafafa;cursor:pointer">Reload assets</button>
+        </div>
+        <div class="row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
+          <div id="autoParts" style="display:flex;gap:6px"></div>
+        </div>
+        <div id="autoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;max-height:220px;overflow:auto;border:1px solid #eee;padding:6px"></div>
+      `;
+      document.body.appendChild(panel);
+    }
+    const elParts = document.getElementById('autoParts');
+    const elGrid = document.getElementById('autoGrid');
+    const elStatus = document.getElementById('autoStatus');
+    const elReload = document.getElementById('autoReload');
+
+    // 사용 가능 파트
+    const available = partsOrder.filter(p => store.assets[p] && store.assets[p].size>0);
+    if(available.length===0){
+      elStatus.textContent = ' — 로딩된 리소스가 없습니다.';
+      console.warn('[fallback] empty assets');
+      return;
+    }
+
+    // 선택 기본값
+    store.pick ??= {};
+    for (const p of available){
+      if (store.pick[p] == null) {
+        const first = [...store.assets[p].keys()].sort((a,b)=>a-b)[0];
+        store.pick[p] = first;
+      }
+    }
+
+    // 이미지 로더(에러 로그 포함)
+    function loadImg(src){
+      return new Promise((ok, err)=>{
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = ()=>ok(img);
+        img.onerror = (e)=>{ console.error('[img error]', src, e); err(e); };
+        img.src = src;
+      });
+    }
+
+    async function renderCompose(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      for(const p of partsOrder){
+        const map = store.assets[p];
+        const shape = store.pick[p];
+        if(!map || shape==null) continue;
+        const cell = map.get(shape);
+        const url = cell?.url || cell?.previewUrl;
+        if(!url) continue;
+        try{
+          const img = await loadImg(url);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        }catch(e){
+          // 이미 로깅함
+        }
+      }
+    }
+
+    // 탭
+    let currentPart = available[0];
+    function drawPartTabs(){
+      elParts.innerHTML = '';
+      for(const p of available){
+        const btn = document.createElement('button');
+        btn.textContent = p + ` (${store.assets[p].size})`;
+        btn.style.cssText = 'padding:6px 10px;border:1px solid #ddd;background:#fafafa;cursor:pointer';
+        if(p===currentPart){ btn.style.background='#222'; btn.style.color='#fff'; }
+        btn.onclick = ()=>{ currentPart = p; drawPartTabs(); drawGrid(); };
+        elParts.appendChild(btn);
+      }
+    }
+
+    // 썸네일 그리드
+    function drawGrid(){
+      elGrid.innerHTML = '';
+      const entries = [...store.assets[currentPart].entries()].sort((a,b)=>a[0]-b[0]); // [shape,{...}]
+      for(const [shape, cell] of entries){
+        const div = document.createElement('div');
+        div.className = 'cell';
+        div.style.cssText = 'border:1px solid #ddd;background:#fff;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;cursor:pointer';
+        const img = document.createElement('img');
+        img.alt = `${currentPart}:${shape}`;
+        img.src = cell.previewUrl || cell.url;
+        img.style.cssText = 'image-rendering:pixelated;width:100%;height:100%;object-fit:contain';
+        div.title = `${currentPart}:${shape}`;
+        div.onclick = async ()=>{
+          store.pick[currentPart] = shape;
+          await renderCompose();
+        };
+        div.appendChild(img);
+        elGrid.appendChild(div);
+      }
+    }
+
+    // 상태/리로드
+    function updateStatus(){
+      const counts = Object.fromEntries(partsOrder.map(p => [p, store.assets[p]?.size||0]));
+      elStatus.textContent = ` — loaded: `+JSON.stringify(counts);
+      console.log('[fallback] counts', counts);
+    }
+    elReload.onclick = ()=> location.reload();
+
+    drawPartTabs();
+    drawGrid();
+    updateStatus();
+    await renderCompose();
+  });
+})();
+
+/* =========================
+   3) 즉시 실행: 실제 로딩 시작
+========================= */
 (async () => {
   try {
     await loadFromGitHubAuto({
       user: 'Mgpixelart',
       repo: 'avatar-customize-v1',
-      ref: 'main'
+      ref: 'main'      // 안정화 시 태그 'v1' 권장
     });
   } catch (err) {
     console.error('[auto-loader] ERROR:', err);
@@ -1408,147 +1554,3 @@ function __ensureCompatibility(parts){
 })();
 </script>
 
-<style>
-  /* 간이 UI */
-  #autoPanel{font:14px/1.4 system-ui, sans-serif; padding:8px; border-top:1px solid #eee}
-  #autoPanel .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0}
-  #autoParts{display:flex; gap:6px}
-  #autoParts button{padding:6px 10px; border:1px solid #ddd; background:#fafafa; cursor:pointer}
-  #autoParts button.active{background:#222; color:#fff}
-  #autoGrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(48px,1fr)); gap:6px; max-height:220px; overflow:auto; border:1px solid #eee; padding:6px}
-  #autoGrid .cell{border:1px solid #ddd; background:#fff; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; cursor:pointer}
-  #autoGrid img{image-rendering: pixelated; width:100%; height:100%; object-fit:contain}
-  #autoStatus{opacity:.7}
-  canvas#autoCanvas{image-rendering: pixelated; width:256px; height:256px; border:1px solid #ddd; background:#f8f8f8}
-</style>
-
-<script>
-/* ===== Fallback Renderer: 기존 UI가 실패해도 강제 표시 ===== */
-(async function fallbackBoot(){
-  // store/assets가 준비됐는지 확인 (auto-loader가 먼저 실행되어 있어야 함)
-  if(!window.store || !store.assets) {
-    console.warn('[fallback] store.assets 없음. auto-loader가 먼저 실행되어야 합니다.');
-    return;
-  }
-
-  // 캔버스 보장
-  let canvas = document.getElementById('autoCanvas');
-  if(!canvas){
-    canvas = document.createElement('canvas');
-    canvas.id = 'autoCanvas';
-    canvas.width = 64;  // 원본 격자 크기 가정
-    canvas.height = 64;
-    document.body.appendChild(canvas);
-  }
-  const ctx = canvas.getContext('2d', { willReadFrequently:true });
-  ctx.imageSmoothingEnabled = false;
-
-  // 패널 보장
-  let panel = document.getElementById('autoPanel');
-  if(!panel){
-    panel = document.createElement('div');
-    panel.id = 'autoPanel';
-    panel.innerHTML = `
-      <div class="row">
-        <strong>Auto Loader Fallback</strong>
-        <span id="autoStatus"></span>
-      </div>
-      <div class="row">
-        <div id="autoParts"></div>
-      </div>
-      <div id="autoGrid"></div>
-    `;
-    document.body.appendChild(panel);
-  }
-  const elParts = document.getElementById('autoParts');
-  const elGrid = document.getElementById('autoGrid');
-  const elStatus = document.getElementById('autoStatus');
-
-  // 사용 파트와 순서
-  const partsOrder = ['skin','clothes','face','hair','glass'];
-  const available = partsOrder.filter(p => store.assets[p] && store.assets[p].size>0);
-  if(available.length===0){
-    elStatus.textContent = ' — 로딩된 리소스가 없습니다.';
-    console.warn('[fallback] empty assets');
-    return;
-  }
-
-  // 선택 기본값
-  store.pick ??= {};
-  for (const p of available){
-    if (store.pick[p] == null) {
-      const first = [...store.assets[p].keys()].sort((a,b)=>a-b)[0];
-      store.pick[p] = first;
-    }
-  }
-
-  // 캔버스 합성
-  async function renderCompose(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    for(const p of partsOrder){
-      const map = store.assets[p];
-      const shape = store.pick[p];
-      if(!map || shape==null) continue;
-      const cell = map.get(shape);
-      const url = cell?.url || cell?.previewUrl;
-      if(!url) continue;
-      const img = await loadImg(url);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    }
-  }
-
-  function loadImg(src){
-    return new Promise((ok, err)=>{
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = ()=>ok(img);
-      img.onerror = err;
-      img.src = src;
-    });
-  }
-
-  // 파트 탭
-  let currentPart = available[0];
-  function drawPartTabs(){
-    elParts.innerHTML = '';
-    for(const p of available){
-      const btn = document.createElement('button');
-      btn.textContent = p + ` (${store.assets[p].size})`;
-      if(p===currentPart) btn.classList.add('active');
-      btn.onclick = ()=>{ currentPart = p; drawPartTabs(); drawGrid(); };
-      elParts.appendChild(btn);
-    }
-  }
-
-  // 썸네일 그리드
-  function drawGrid(){
-    elGrid.innerHTML = '';
-    const entries = [...store.assets[currentPart].entries()].sort((a,b)=>a[0]-b[0]); // [shape,{...}]
-    for(const [shape, cell] of entries){
-      const div = document.createElement('div');
-      div.className = 'cell';
-      const img = document.createElement('img');
-      img.alt = `${currentPart}:${shape}`;
-      img.src = cell.previewUrl || cell.url;
-      div.title = `${currentPart}:${shape}`;
-      div.onclick = async ()=>{
-        store.pick[currentPart] = shape;
-        await renderCompose();
-      };
-      div.appendChild(img);
-      elGrid.appendChild(div);
-    }
-  }
-
-  // 상태
-  (function updateStatus(){
-    const counts = Object.fromEntries(partsOrder.map(p => [p, store.assets[p]?.size||0]));
-    elStatus.textContent = ` — loaded: `+JSON.stringify(counts);
-    console.log('[fallback] counts', counts);
-  })();
-
-  drawPartTabs();
-  drawGrid();
-  await renderCompose();
-})();
-</script>
