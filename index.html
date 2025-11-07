@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Avatar Customizer — Minimal (All-Scan + Delete + Proxy preset)</title>
+<title>Avatar Customizer — Minimal (All-Scan + Delete + Proxy safe)</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box}
@@ -64,7 +64,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   <div class="topbar">
     <div class="title">
       <h1>Avatar Customizer</h1>
-      <div class="meta">All-Scan · Delete · Proxy preset · 432×256</div>
+      <div class="meta">All-Scan · Delete · Proxy safe · 432×256</div>
     </div>
     <div class="actions">
       <span class="small" id="perf">Idle</span>
@@ -73,7 +73,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
       <label class="btn" for="inDir">Open Folder</label><input id="inDir" type="file" webkitdirectory directory multiple accept="image/*">
       <input id="inFiles" type="file" accept="image/*" multiple style="display:none">
       <button class="btn" id="cdnScan" type="button">CDN All-Scan</button>
-      <input id="proxyBase" type="text" value="https://corsproxy.io/?url=" style="min-width:300px" title="프록시 주소 (예: https://corsproxy.io/?url=)">
+      <input id="proxyBase" type="text" value="https://images.weserv.nl/?url=" style="min-width:320px" title="권장 프록시(프리뷰+저장 OK): https://images.weserv.nl/?url=">
       <button class="btn" id="proxyToggle" type="button" title="외부 이미지를 프록시로 라우팅">Use Proxy: OFF</button>
       <button class="btn" id="allRand" type="button" disabled>전체 랜덤</button>
     </div>
@@ -175,19 +175,28 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
 
   const state={selected:new Set(),hover:-1, useProxy:false, proxyBase: (proxyBaseInput.value||'').trim()};
 
+  function getProxyHost(){
+    try{ const u=new URL(state.proxyBase.replace('{url}','https://example.com'), location.href); return u.host; }catch{ return ''; }
+  }
+  function isAlreadyProxied(u){
+    const host = getProxyHost();
+    return host && u.includes(host);
+  }
   function isExternal(u){
     try{
       if(!u) return false;
       if(u.startsWith('blob:')||u.startsWith('data:')) return false;
+      if(isAlreadyProxied(u)) return true; // treated as external but safe when proxy ON
       const a=new URL(u,location.href);
       return a.origin!==location.origin;
     }catch{return false;}
   }
   function proxify(u){
     if(!state.useProxy) return u;
+    if(!u) return u;
+    if(isAlreadyProxied(u)) return u; // avoid double-proxy
     const base=(state.proxyBase||'').trim();
     if(!base) return u;
-    // Support patterns: "...?url=" (corsproxy.io), "...?u=", "...{url}..."
     if(base.includes('{url}')) return base.replace('{url}', encodeURIComponent(u));
     if(/[\?&]url=$/i.test(base) || /=$/.test(base)) return base + encodeURIComponent(u);
     return base + (base.includes('?') ? '&url=' : '?url=') + encodeURIComponent(u);
@@ -243,7 +252,8 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
 
   // Colors
   const colorDots=[];
-  COLOR_HEX.forEach((hex,i)=>{ const d=document.createElement('div'); d.className='swatch'; d.style.background=hex; d.onclick=()=>onColorClick(i); colorBar.appendChild(d); colorDots.push(d); });
+  const colorBarEl=document.getElementById('colorBar');
+  COLOR_HEX.forEach((hex,i)=>{ const d=document.createElement('div'); d.className='swatch'; d.style.background=hex; d.onclick=()=>onColorClick(i); colorBarEl.appendChild(d); colorDots.push(d); });
   function highlightColor(){ colorDots.forEach((el,i)=> el.classList.toggle('active', i===store.color)); }
 
   // Grid
@@ -285,6 +295,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   }
 
   async function drawSheet(){
+    const ctx=cvs.getContext('2d',{alpha:true}); ctx.imageSmoothingEnabled=false;
     ctx.clearRect(0,0,432,256);
     for(const part of ORDER){
       const shape=store.pick[part]; const map=store.assets[part];
@@ -424,10 +435,12 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     const R=ranges[part]; let added=0, miss=0, stopAt=40;
     for(let n=R.start; n>=R.end; n+=R.step){
       const raw=`${ZEP_BASE}/${part}/${n}.png`; const rawPrev=`${ZEP_BASE}/${part}/${n}_preview.png`;
-      const src=proxify(raw); const prev=proxify(rawPrev);
+      const src=proxify(raw); 
       const ok=await urlExists(src); if(!ok){ miss++; if(miss>=stopAt) break; continue; } else { miss=0; }
+      const prev=proxify(rawPrev);
+      const prevOk = await urlExists(prev);
       const cell=store.assets[part].get(n) || {url:null,previewUrl:null,name:`${part}_${n}.png`};
-      cell.url=src; cell.previewUrl=(await urlExists(prev))?prev:src; store.assets[part].set(n,cell); added++;
+      cell.url=src; cell.previewUrl=prevOk?prev:src; store.assets[part].set(n,cell); added++;
       if(added%10===0) perf.textContent=`scan ${part}: +${added}`;
     }
     perf.textContent=`scan ${part}: +${added}`;
@@ -445,7 +458,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
   proxyToggle.onclick=()=>{
     state.proxyBase = (proxyBaseInput.value||'').trim();
     if(!state.useProxy){
-      if(!state.proxyBase){ alert('프록시 URL을 입력하세요. 예: https://corsproxy.io/?url='); return; }
+      if(!state.proxyBase){ alert('프록시 URL을 입력하세요. 예: https://images.weserv.nl/?url='); return; }
       state.useProxy = true;
       proxyToggle.textContent = 'Use Proxy: ON';
       // rewrite external URLs already loaded
@@ -455,7 +468,7 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
           if(v.previewUrl && isExternal(v.previewUrl)) v.previewUrl = proxify(v.previewUrl);
         }
       }
-      refreshExportLock();
+      refreshExportLock(); buildGrid();
     }else{
       state.useProxy = false;
       proxyToggle.textContent = 'Use Proxy: OFF';
@@ -539,7 +552,6 @@ select,input[type='text']{background:#0f1424;color:#e8ecf1;border:1px solid #243
     if(e.key==='Delete'){ deleteSelectedResources(); }
     if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){
       if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
-      // select all in current grid
       const vis=store._visibleShapes||[]; store.selectedShapes=new Set(vis);
       document.querySelectorAll('.cell').forEach(c=>{
         if(c.classList.contains('add')) return;
