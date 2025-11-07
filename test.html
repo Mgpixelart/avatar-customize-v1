@@ -2,6 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Asset Smoke Test</title>
+<!-- CSP: same-origin 스크립트만 허용, 외부 네트워크는 jsDelivr만 -->
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self';
                img-src 'self' https://cdn.jsdelivr.net data:;
@@ -9,6 +10,7 @@
                script-src 'self';
                style-src 'self' 'unsafe-inline';
                object-src 'none'">
+
 <style>
   body{font:14px/1.5 system-ui, sans-serif; padding:16px}
   #log{white-space:pre-wrap; background:#f7f7f7; border:1px solid #eee; padding:8px; margin:8px 0}
@@ -23,88 +25,5 @@
 <h3>Previews</h3>
 <div id="grid"></div>
 
-<script>
-(async function(){
-  const log = (m)=>{ const el=document.getElementById('log'); el.textContent += '\n'+m; console.log(m); };
-  document.getElementById('log').textContent = 'JS running…';
-
-  const user='Mgpixelart', repo='avatar-customize-v1', ref='main';
-  const parts=['face','skin','hair','clothes','glass'];
-  const listURL=`https://data.jsdelivr.com/v1/package/gh/${user}/${repo}@${ref}/flat`;
-  const base=`https://cdn.jsdelivr.net/gh/${user}/${repo}@${ref}/`;
-
-  try{
-    log('fetch list: '+listURL);
-    const res = await fetch(listURL, {cache:'no-store'});
-    if(!res.ok){ throw new Error('List API '+res.status+' '+res.statusText); }
-    const { files } = await res.json();
-    log('files count: '+files.length);
-
-    // 분류
-    const maps = Object.fromEntries(parts.map(p=>[p,new Map()]));
-    let added=0;
-    for(const f of files){
-      let path = (f.name||'').replace(/^\/+/, '');
-      if(!/\.webp$/i.test(path)) continue;
-      const p = parts.find(x => path.toLowerCase().includes(`/${x}/`));
-      if(!p) continue;
-      const file = path.split('/').pop()||'';
-      const m = file.match(/-?\d+/); if(!m) continue;
-      const shape = parseInt(m[0],10);
-      const isPrev = /preview/i.test(file);
-      const cell = maps[p].get(shape) || {};
-      (isPrev ? cell.previewUrl = base+path : cell.url = base+path);
-      maps[p].set(shape, cell);
-      added++;
-    }
-    log('grouped counts: '+JSON.stringify(Object.fromEntries(parts.map(p=>[p, maps[p].size]))));
-    log('added entries: '+added);
-
-    if(added===0){ log('❌ no assets detected. Check folder names and file extensions.'); return; }
-
-    // 첫 파트 렌더
-    const firstPart = parts.find(p=>maps[p].size>0);
-    if(!firstPart){ log('❌ no part found'); return; }
-    const firstEntry = maps[firstPart].entries().next().value; // [shape, cell]
-    if(!firstEntry){ log('❌ empty part'); return; }
-    const firstCell = firstEntry[1];
-    const firstUrl = firstCell.url || firstCell.previewUrl;
-    log('draw first: '+firstPart+' -> '+firstUrl);
-
-    const c = document.getElementById('canvas');
-    const ctx = c.getContext('2d', { willReadFrequently:true });
-    ctx.imageSmoothingEnabled=false;
-
-    const loadImg = (src)=>new Promise((ok,err)=>{
-      const img=new Image(); img.crossOrigin='anonymous';
-      img.onload=()=>ok(img); img.onerror=(e)=>{log('❌ img error: '+src); err(e);};
-      img.src=src;
-    });
-
-    try{
-      const img = await loadImg(firstUrl);
-      ctx.clearRect(0,0,c.width,c.height);
-      ctx.drawImage(img,0,0,c.width,c.height);
-      log('✅ first image drawn on canvas');
-    }catch(e){ log('❌ draw failed: '+(e&&e.message||e)); }
-
-    // 프리뷰 24개
-    const grid = document.getElementById('grid');
-    let shown=0;
-    for(const p of parts){
-      const arr = [...maps[p].values()];
-      for(const cell of arr){
-        const u = cell.previewUrl || cell.url; if(!u) continue;
-        const im = document.createElement('img'); im.loading='lazy'; im.alt=p;
-        im.src=u; grid.appendChild(im);
-        if(++shown>=24) break;
-      }
-      if(shown>=24) break;
-    }
-    log('preview shown: '+shown);
-    if(shown===0) log('⚠️ no previewable URLs. Check file names contain "preview" or at least base URL valid.');
-  }catch(err){
-    log('❌ fatal: '+(err&&err.message||err));
-  }
-})();
-</script>
+<!-- ✅ 같은 출처에서 외부 JS로 로딩 (CSP 통과) -->
+<script src="./test.js" defer></script>
