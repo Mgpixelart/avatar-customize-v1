@@ -4,9 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Avatar Customizer — FIX10 (BG bottom-left)</title>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js">
-let suppressNextClick=false;
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>window.suppressNextClick = false;</script>
   <style>
     *{box-sizing:border-box}
     html,body{height:100%;margin:0}
@@ -380,15 +379,17 @@ let suppressNextClick=false;
   const colorDots=[];
   COLOR_HEX.forEach((hex,i)=>{ const d=document.createElement('div'); d.className='swatch'; d.style.background=hex; d.dataset.idx=i; d.addEventListener('click',()=>onColorClick(i)); colorBar.appendChild(d); colorDots.push(d); });
 
-  const store = {
-    assets:{ face:new Map(), skin:new Map(), hair:new Map(), clothes:new Map(), glass:new Map() },
-    selPart:'face',
-    color:0,
-    pick:{ face:null, skin:null, hair:null, clothes:null, glass:null },
-    selectedShapes: new Set(),
-    _visibleShapes: [],   // 현재 그리드에 표시 중인 shape들 (필터 반영)
-    _anchorShape: null    // Shift 범위 선택 앵커
-  };
+  // 전역 store 재사용(이미 있으면) + 없으면 초기화
+const store = (window.store = window.store || {
+  assets: { face:new Map(), skin:new Map(), hair:new Map(), clothes:new Map(), glass:new Map() },
+  selPart: 'face',
+  color: 0,
+  pick: { face:null, skin:null, hair:null, clothes:null, glass:null },
+  selectedShapes: new Set(),
+  _visibleShapes: [],
+  _anchorShape: null
+});
+
 
   function colorIdxFromShape(shape){ return ((-shape - 1) % 12 + 12) % 12; }
   function blockFromShape(shape){ return Math.floor(((-shape - 1) / 12)); }
