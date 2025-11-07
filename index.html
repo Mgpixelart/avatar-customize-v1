@@ -1278,3 +1278,87 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 })();
 </script>
+
+<script>
+/* === GitHub 리소스 자동 로더 (manifest 불필요) ===
+   - 목록: jsDelivr Data API
+   - 이미지: jsDelivr CDN
+   - 카테고리: 폴더명(face/skin/hair/clothes/glass)
+   - 프리뷰: 파일명에 "preview" 포함 시 previewUrl로 등록
+   - 색 슬롯: 파일명 숫자(음수/정수, 예 -672) → shape로 사용
+*/
+async function loadFromGitHubAuto({ user, repo, ref = 'main', root = 'assets' }) {
+  const listURL = `https://data.jsdelivr.com/v1/package/gh/${user}/${repo}@${ref}/flat`;
+  const res = await fetch(listURL, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to list files from jsDelivr Data API');
+  const { files } = await res.json();
+
+  const parts = ['face', 'skin', 'hair', 'clothes', 'glass'];
+  const baseUrl = `https://cdn.jsdelivr.net/gh/${user}/${repo}@${ref}/`;
+
+  // 스토어 기본 보정
+  if (!window.store) window.store = {};
+  store.assets ??= {};
+  store.pick ??= {};
+  parts.forEach(p => (store.assets[p] ??= new Map()));
+
+  // 파일 분류
+  for (const f of files) {
+    const path = f.name;                      // ex) "assets/hair/-672.webp"
+    if (!path.toLowerCase().endsWith('.webp')) continue;
+    const seg = path.split('/');
+    if (seg.length < 3 || seg[0] !== root) continue;
+
+    const part = seg[1];                      // hair/clothes/face/skin/glass
+    if (!parts.includes(part)) continue;
+
+    const file = seg.at(-1);
+    const m = file.match(/-?\d+/);            // 음수 포함 정수
+    if (!m) continue;
+    const shape = parseInt(m[0], 10);
+
+    const url = baseUrl + path;
+    const isPreview = /preview/i.test(file);
+
+    const map = store.assets[part];
+    let cell = map.get(shape);
+    if (!cell) { cell = { url: null, previewUrl: null, name: file }; map.set(shape, cell); }
+    if (isPreview) cell.previewUrl = url; else cell.url = url;
+    if (!cell.previewUrl) cell.previewUrl = cell.url;
+  }
+
+  // 초기 선택값(오름차순 첫 값)
+  for (const p of parts) {
+    if (store.pick[p] != null) continue;
+    const keys = [...store.assets[p].keys()].sort((a,b)=>a-b);
+    if (keys.length) store.pick[p] = keys[0];
+  }
+
+  // 색 버킷(이미 있는 함수 재사용)
+  if (typeof colorIdxFromShape === 'function') {
+    store.color = (store.pick.hair!=null)
+      ? colorIdxFromShape(store.pick.hair)
+      : (store.pick.clothes!=null ? colorIdxFromShape(store.pick.clothes) : store.color);
+  }
+
+  // 기존 렌더 플로우 호출
+  if (typeof selectPart === 'function') selectPart(store.selPart || 'face');
+  if (typeof drawSheet === 'function') await drawSheet();
+  if (typeof buildGrid === 'function') buildGrid();
+}
+
+// 페이지 스크립트가 모두 로드된 "이 시점"에 바로 실행
+(async () => {
+  try {
+    await loadFromGitHubAuto({
+      user: 'Mgpixelart',
+      repo: 'avatar-customize-v1',
+      ref: 'main',     // 릴리스 태그 만들면 'v1'로 바꾸면 더 안정
+      root: 'assets'
+    });
+  } catch (err) {
+    console.error(err);
+    alert('GitHub 리소스 로드 실패: ' + err.message);
+  }
+})();
+</script>
