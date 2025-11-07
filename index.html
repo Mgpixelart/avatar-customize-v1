@@ -1264,21 +1264,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
 
-
-<script>
-(function(){
-  const selText = document.getElementById('selText');
-  if(!selText) return;
-  selText.addEventListener('keypress', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); } });
-  selText.addEventListener('paste', (e)=>{
-    e.preventDefault();
-    const txt = (e.clipboardData || window.clipboardData).getData('text');
-    const clean = (txt||'').replace(/\r|\n/g,' ').replace(/\s+/g,' ').trim();
-    document.execCommand('insertText', false, clean);
-  });
-})();
-</script>
-
 <script>
 async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
   const listURL = `https://data.jsdelivr.com/v1/package/gh/${user}/${repo}@${ref}/flat`;
@@ -1295,21 +1280,25 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
   store.pick ??= {};
   parts.forEach(p => (store.assets[p] ??= new Map()));
 
-  // 파일 분류 (경로 어디에 있든 /{part}/ 포함되면 인식)
+  // 파일 분류
   for (const f of files) {
-    const path = f.name;                           // e.g. "assets/hair/-672.webp" 또는 "hair/-672.webp"
+    let path = f.name;                          // 예: "/assets/clothes/-1.webp"
     if (!path.toLowerCase().endsWith('.webp')) continue;
 
+    // 1) 선두 슬래시 제거
+    path = path.replace(/^\/+/, '');            // -> "assets/clothes/-1.webp"
+
+    // 2) 파트 판별: 어디에 있든 "/{part}/" 포함이면 인정
     const lower = path.toLowerCase();
     const part = parts.find(p => lower.includes(`/${p}/`));
     if (!part) continue;
 
     const file = path.split('/').pop();
-    const m = file && file.match(/-?\d+/);         // 음수 포함 정수
+    const m = file && file.match(/-?\d+/);      // 음수/정수 shape
     if (!m) continue;
     const shape = parseInt(m[0], 10);
 
-    const url = baseUrl + path;
+    const url = baseUrl + path;                 // baseUrl 끝에 / 있음 → OK
     const isPreview = /preview/i.test(file);
 
     const map = store.assets[part];
@@ -1326,15 +1315,17 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
     if (keys.length) store.pick[p] = keys[0];
   }
 
+  // 3) 파트 자동 선택: 실제로 항목이 있는 파트 중 첫 번째
+  const firstPart = parts.find(p => (store.assets[p] && store.assets[p].size > 0)) || 'face';
+  if (typeof selectPart === 'function') selectPart(firstPart);
+
   // 색 버킷
   if (typeof colorIdxFromShape === 'function') {
-    store.color = (store.pick.hair!=null)
-      ? colorIdxFromShape(store.pick.hair)
-      : (store.pick.clothes!=null ? colorIdxFromShape(store.pick.clothes) : store.color);
+    if (store.pick.hair != null) store.color = colorIdxFromShape(store.pick.hair);
+    else if (store.pick.clothes != null) store.color = colorIdxFromShape(store.pick.clothes);
   }
 
   // 렌더
-  if (typeof selectPart === 'function') selectPart(store.selPart || 'face');
   if (typeof drawSheet === 'function') await drawSheet();
   if (typeof buildGrid === 'function') buildGrid();
 }
@@ -1345,7 +1336,7 @@ async function loadFromGitHubAuto({ user, repo, ref = 'main' }) {
     await loadFromGitHubAuto({
       user: 'Mgpixelart',
       repo: 'avatar-customize-v1',
-      ref: 'main'   // 안정화 후 태그(예: 'v1') 권장
+      ref: 'main'
     });
   } catch (err) {
     console.error(err);
