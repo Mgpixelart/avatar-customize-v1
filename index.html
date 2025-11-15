@@ -294,9 +294,12 @@ let suppressNextClick=false;
     const m = base.match(/^(hair|clothes|face|skin|glass)[-_]/);
     return m? m[1] : null;
   }
-  function inferShapeFromName(name){
-    const m = (name||'').match(/(-?\d+)/);
-    return m ? parseInt(m[1],10) : null;
+  function inferShapeFromName(name, part){
+    const safeName = sanitizeShapeName(name);
+    const m = safeName.match(/^(-?\d+)$/);
+    if(m) return parseInt(m[1],10);
+    if(!part) return null;
+    return nextCustomShape(part, safeName);
   }
   function isPreviewName(name){ return /preview/i.test(name||''); }
 
@@ -317,7 +320,7 @@ let suppressNextClick=false;
     for(const [part, arr] of groups){
       const map = store.assets[part];
       for(const f of arr){
-        const shape = inferShapeFromName(f.name);
+      const shape = inferShapeFromName(f.name, part);
         if(shape==null) continue;
         const url = URL.createObjectURL(f);
         let cell = map.get(shape);
@@ -464,6 +467,29 @@ let suppressNextClick=false;
     _anchorShape: null    // Shift 범위 선택 앵커
   };
 
+  const CUSTOM_SHAPE_BASE = 100000;
+  let customShapeCursor = CUSTOM_SHAPE_BASE;
+  const customNameToShape = new Map();
+  function sanitizeShapeName(name){
+    let raw = (name || '').trim();
+    if(!raw) return 'unnamed';
+    raw = raw.replace(/\.[^.]+$/, '');
+    raw = raw.replace(/[_-]?preview$/i, '');
+    raw = raw.trim();
+    return raw || 'unnamed';
+  }
+  function normalizedShapeKey(part, name){
+    const cleanPart = (part || 'unknown').toLowerCase();
+    const safeName = (name || 'unnamed').toLowerCase();
+    return `${cleanPart}:${safeName}`;
+  }
+  function nextCustomShape(part, name){
+    const sanitized = sanitizeShapeName(name);
+    const key = normalizedShapeKey(part, sanitized);
+    if(!customNameToShape.has(key)) customNameToShape.set(key, customShapeCursor++);
+    return customNameToShape.get(key);
+  }
+
   function colorIdxFromShape(shape){ return ((-shape - 1) % 12 + 12) % 12; }
   function blockFromShape(shape){ return Math.floor(((-shape - 1) / 12)); }
   function shapeFromBlockColor(block, colorIdx){ return -(block*12 + colorIdx + 1); }
@@ -520,8 +546,8 @@ let suppressNextClick=false;
       if(!['hair','clothes','face','skin','glass'].includes(folder)) continue;
       const base = path.split('/').pop();
       const isPreview = /preview/i.test(base);
-      const m = base.match(/(-?\d+)/); if(!m) continue;
-      const shape = parseInt(m[1],10);
+      const shape = inferShapeFromName(base, folder);
+      if(shape==null) continue;
       const blob = await en.async('blob');
       const url = URL.createObjectURL(blob);
       const map = store.assets[folder];
@@ -618,7 +644,8 @@ let suppressNextClick=false;
       const d=document.createElement('div'); d.className='cell'; d.dataset.shape=shape;
       const th=document.createElement('div'); th.className='thumb';
       const img=new Image(); img.width=84; img.height=84; img.src=item.previewUrl || prox(item.url); th.appendChild(img);
-      const lb=document.createElement('div'); lb.className='label'; lb.textContent=`#${shape}`; lb.title=item.name||`#${shape}`;
+      const labelText = item.name || `#${shape}`;
+      const lb=document.createElement('div'); lb.className='label'; lb.textContent=labelText; lb.title=labelText;
       d.append(th,lb);
       if(p==='hair' && isBaldShape(shape)){ const badge=document.createElement('div'); badge.className='badge'; badge.textContent='빈'; d.appendChild(badge); }
       if(store.pick[p]===shape) d.classList.add('active');
